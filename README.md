@@ -24,20 +24,22 @@ El mapeo se edita en [`include/MapeoXInput.h`](include/MapeoXInput.h).
 
 | GameCube | Xbox 360 | Con Z mantenida |
 |---|---|---|
-| A / B / X / Y | A / B / X / Y | — |
+| A / B | A / B | — |
+| X | X | **RB** |
+| Y | Y | **LB** |
 | L / R | LT / RT (analógicos) | — |
-| Start | Start | **Botón Xbox** |
-| D-pad ↑ | D-pad ↑ | **L3** |
-| D-pad ↓ | D-pad ↓ | **R3** |
-| D-pad ← | D-pad ← | **Back** |
-| D-pad → | D-pad → | **LB** |
+| Start | toque = **Start** · mantener 0.3 s = **botón Xbox** | **Back** |
+| D-pad ↑ / ↓ | D-pad ↑ / ↓ | **L3** / **R3** |
+| D-pad ← / → | D-pad ← / → | (libres) |
 | Stick / C-stick | Stick izquierdo / derecho | — |
-| **Z sola** | toque = **RB** · mantener 0.3 s = RB mantenido | |
+| **Z** | no manda nada: es solo la tecla de capa (instantánea) | |
 
 **A+B+Z+Start durante 3 s** reinicia la Pico en modo carga de `.uf2` (BOOTSEL), igual que el firmware Bluetooth.
 
-Capa Z: para un combo, presiona el otro botón antes de 0.3 s. Los botones sin función
-"con Z" siguen funcionando normal aunque Z esté presionada. Las pruebas de esta lógica
+Capa Z: mientras mantienes Z, los botones con función "con Z" cambian al instante
+(`MODO_Z` también permite que Z prenda/apague la capa con cada toque). Los botones sin
+función "con Z" siguen funcionando normal. Cada botón puede tener toque/mantener
+(columna "mantener"); el toque se manda al soltar. Las pruebas de esta lógica
 están en `tests/test_remapeo.cpp` y corren en la PC.
 
 ## Compilar

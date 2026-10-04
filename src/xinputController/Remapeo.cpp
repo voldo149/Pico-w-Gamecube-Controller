@@ -28,81 +28,87 @@ void Remapeo::actualizar(const GcState &gc, uint32_t ahora, XInputReport *salida
   if (gc.cx < -C_STICK_UMBRAL) b |= GC_BIT(GC_C_IZQ);
   if (gc.cx > C_STICK_UMBRAL) b |= GC_BIT(GC_C_DER);
 
+  // 2) Capa Z: sin retraso, Z no manda nada por sí sola
   const uint32_t bitZ = GC_BIT(GC_Z);
-  const uint32_t nuevos = b & ~_botonesAntes & ~bitZ;
-
-  // Solo los botones con función "con Z" convierten a Z en combo
-  uint32_t combinables = 0;
-  for (int i = 0; i < GC_NUM_BOTONES; i++) {
-    if (i != GC_Z && MAPEO[i].conZ != NADA) combinables |= GC_BIT(i);
+  const bool zAhora = b & bitZ;
+  bool capa = false;
+  if (MODO_Z == Z_MANTENER) {
+    capa = zAhora;
+  } else if (MODO_Z == Z_ALTERNAR) {
+    if (zAhora && !(_botonesAntes & bitZ)) _capaFija = !_capaFija;
+    capa = _capaFija;
   }
 
-  // 2) Capa Z
-  if (USAR_CAPA_Z && (b & bitZ)) {
-    if (_z == Z_SUELTA) {
-      _z = Z_PENDIENTE;
-      _zDesde = ahora;
-    }
-    if (_z == Z_PENDIENTE) {
-      if (nuevos & combinables) {
-        _z = Z_CAPA;
-      } else if (ahora - _zDesde >= Z_TIEMPO_MS) {
-        _z = Z_MANTENIDA;
-      }
-    }
-  } else {
-    if (_z == Z_PENDIENTE) {  // Z sola, soltada antes de tiempo: toque
-      _pulsoActivo = true;
-      _pulsoHasta = ahora + Z_PULSO_MS;
-    }
-    _z = Z_SUELTA;
-  }
-  const bool capa = (_z == Z_PENDIENTE || _z == Z_CAPA);
-
-  // 3) Cada botón decide su capa al presionarse y la mantiene hasta soltarse
+  // 3) Cada botón
   uint32_t sal = 0;
   uint8_t lt = 0, rt = 0;
   bool cComoBotonConZ = false;
   for (int i = 0; i < GC_NUM_BOTONES; i++) {
-    if (i == GC_Z) continue;
+    if (i == GC_Z && MODO_Z != Z_BOTON) continue;
+    const MapeoBoton &m = MAPEO[i];
     const uint32_t bit = GC_BIT(i);
-    if (!(b & bit)) {
-      _conZ[i] = false;
-      continue;
+    const bool abajo = b & bit;
+    const bool antes = _botonesAntes & bit;
+    EstadoBoton &e = _boton[i];
+
+    if (abajo && !antes) {
+      if (capa && m.conZ != NADA) {
+        e.modo = CON_Z;
+      } else if (m.mantener != NADA) {
+        e.modo = ESPERANDO;
+        e.desde = ahora;
+      } else {
+        e.modo = NORMAL;
+      }
     }
-    if (!(_botonesAntes & bit)) _conZ[i] = capa && MAPEO[i].conZ != NADA;
+    if (!abajo && antes) {
+      if (e.modo == ESPERANDO) {  // se soltó antes de tiempo: fue un toque
+        e.pulso = true;
+        e.pulsoHasta = ahora + PULSO_MS;
+      }
+      e.modo = SUELTO;
+    }
+    if (abajo && e.modo == ESPERANDO && ahora - e.desde >= TIEMPO_MANTENER_MS) {
+      e.modo = MANTENIDO;
+    }
 
-    const uint32_t o = _conZ[i] ? MAPEO[i].conZ : MAPEO[i].normal;
+    uint32_t o = NADA;
+    bool analogico = false;  // el gatillo sale de su propio gatillo del GC
+    switch (e.modo) {
+      case NORMAL:
+        o = m.normal;
+        analogico = true;
+        break;
+      case CON_Z:
+        o = m.conZ;
+        if (esCStick(i)) cComoBotonConZ = true;
+        break;
+      case MANTENIDO:
+        o = m.mantener;
+        break;
+      default:
+        break;
+    }
+    if (e.pulso) {
+      if ((int32_t)(ahora - e.pulsoHasta) < 0) {
+        o |= m.normal;
+      } else {
+        e.pulso = false;
+      }
+    }
     sal |= o;
-    if (esCStick(i) && _conZ[i]) cComoBotonConZ = true;
 
-    // Gatillos analógicos solo cuando salen de su propio gatillo del GC
     if (o & XB_LT) {
-      uint8_t v = (i == GC_L) ? aGatillo(gc.lAnalog, gc.botones & GC_BIT(GC_L)) : 255;
+      uint8_t v = (analogico && i == GC_L) ? aGatillo(gc.lAnalog, gc.botones & GC_BIT(GC_L)) : 255;
       if (v > lt) lt = v;
     }
     if (o & XB_RT) {
-      uint8_t v = (i == GC_R) ? aGatillo(gc.rAnalog, gc.botones & GC_BIT(GC_R)) : 255;
+      uint8_t v = (analogico && i == GC_R) ? aGatillo(gc.rAnalog, gc.botones & GC_BIT(GC_R)) : 255;
       if (v > rt) rt = v;
     }
   }
 
-  // 4) Lo que manda Z sola
-  uint32_t z = 0;
-  if (!USAR_CAPA_Z && (b & bitZ)) z = Z_SOLA;
-  if (_z == Z_MANTENIDA) z = Z_SOLA;
-  if (_pulsoActivo) {
-    if ((int32_t)(ahora - _pulsoHasta) < 0) {
-      z = Z_SOLA;
-    } else {
-      _pulsoActivo = false;
-    }
-  }
-  sal |= z;
-  if (z & XB_LT) lt = 255;
-  if (z & XB_RT) rt = 255;
-
-  // 5) Sticks. El C-stick es el stick derecho salvo que se use como botones
+  // 4) Sticks. El C-stick es el stick derecho salvo que se use como botones
   bool cAnalogico = !cComoBotonConZ;
   for (int i = GC_C_ARRIBA; i <= GC_C_DER; i++) {
     if (MAPEO[i].normal != NADA) cAnalogico = false;

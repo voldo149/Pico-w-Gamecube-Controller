@@ -7,20 +7,23 @@
 #include "XInput.h"
 
 // Convierte el estado del GC en un reporte de Xbox 360 aplicando MapeoXInput.h
-// (capa Z incluida). No depende del hardware, así que se puede probar en la PC.
+// (capa Z y toque/mantener). No depende del hardware: se puede probar en la PC.
 class Remapeo {
  public:
   void actualizar(const GcState &gc, uint32_t ahoraMs, XInputReport *salida);
 
  private:
-  enum EstadoZ : uint8_t { Z_SUELTA, Z_PENDIENTE, Z_CAPA, Z_MANTENIDA };
-  EstadoZ _z = Z_SUELTA;
-  uint32_t _zDesde = 0;
-  uint32_t _pulsoHasta = 0;
-  bool _pulsoActivo = false;
+  // Cada botón decide qué es al presionarse y lo mantiene hasta soltarse
+  enum Modo : uint8_t { SUELTO, NORMAL, CON_Z, ESPERANDO, MANTENIDO };
+  struct EstadoBoton {
+    Modo modo = SUELTO;
+    uint32_t desde = 0;
+    bool pulso = false;  // toque pendiente de mandar tras soltar
+    uint32_t pulsoHasta = 0;
+  };
+  EstadoBoton _boton[GC_NUM_BOTONES];
   uint32_t _botonesAntes = 0;
-  // Cada botón recuerda con qué capa se presionó, hasta que se suelta
-  bool _conZ[GC_NUM_BOTONES] = {};
+  bool _capaFija = false;  // para MODO_Z == Z_ALTERNAR
 };
 
 #endif

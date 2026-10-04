@@ -5,20 +5,20 @@
 //
 // Salidas disponibles (control de Xbox 360):
 //   XB_A  XB_B  XB_X  XB_Y            botones de la cara
-//   XB_LB XB_RB                       bumpers
+//   XB_LB XB_RB                       bumpers (L / R de la Switch)
 //   XB_LT XB_RT                       gatillos (analógicos si vienen de L/R del GC)
-//   XB_START XB_BACK XB_GUIA          Start, Back (View) y botón Xbox
+//   XB_START XB_BACK XB_GUIA          Start (+), Back (-) y botón Xbox (Home)
 //   XB_L3 XB_R3                       clic de los sticks
 //   XB_DPAD_ARRIBA / _ABAJO / _IZQ / _DER
 //   NADA                              sin función
 // Se pueden combinar con | (ej. XB_LB | XB_RB = los dos a la vez).
 //
-// CAPA Z: mientras mantienes Z, los botones con algo en la columna "con Z"
-// cambian de función. Los que tienen NADA siguen haciendo lo normal.
-//   - Z sola (presionar y soltar sin combinar): manda Z_SOLA como un toque.
-//   - Z sola mantenida más de Z_TIEMPO_MS: manda Z_SOLA mantenido (sirve
-//     para menús radiales que se abren al mantener).
-//   - Para combinar, presiona el otro botón antes de que pasen Z_TIEMPO_MS.
+// Cada botón tiene 3 columnas:
+//   normal    lo que manda al presionarlo
+//   con Z     lo que manda si se presiona mientras Z está activa (NADA = lo normal)
+//   mantener  si no es NADA: toque = "normal" (se manda al soltar),
+//             mantener más de TIEMPO_MANTENER_MS = "mantener"
+//             (OJO: el toque llega al soltar, así que ese botón tiene un poco de retraso)
 
 #ifndef MapeoXInput_h
 #define MapeoXInput_h
@@ -26,17 +26,22 @@
 #include "GcState.h"
 #include "XInput.h"
 
-// true = Z es la tecla de capa. false = Z es un botón normal (manda Z_SOLA al instante)
-#define USAR_CAPA_Z true
+// Cómo funciona Z:
+//   Z_MANTENER  la capa Z está activa mientras mantienes Z (recomendado)
+//   Z_ALTERNAR  cada toque de Z prende / apaga la capa
+//   Z_BOTON     Z es un botón normal (usa su fila "normal" de la tabla)
+#define Z_MANTENER 0
+#define Z_ALTERNAR 1
+#define Z_BOTON 2
+#ifndef MODO_Z
+#define MODO_Z Z_MANTENER
+#endif
 
-// Lo que manda Z cuando se usa sola
-#define Z_SOLA XB_RB
+// Tiempo (ms) para que un botón con columna "mantener" cuente como mantenido
+#define TIEMPO_MANTENER_MS 300
 
-// Tiempo (ms) para decidir entre "Z sola mantenida" y "combo con Z"
-#define Z_TIEMPO_MS 300
-
-// Duración (ms) del toque de Z sola (3 frames a 60 fps = 50 ms)
-#define Z_PULSO_MS 50
+// Duración (ms) del toque que se manda al soltar (3 frames a 60 fps = 50 ms)
+#define PULSO_MS 50
 
 // Gatillos: por debajo de este valor (0-255) no cuentan como presionados
 #define GATILLO_UMBRAL 0x30
@@ -49,27 +54,28 @@
 struct MapeoBoton {
   uint32_t normal;
   uint32_t conZ;
+  uint32_t mantener;
 };
 
 // Una fila por botón del GC, en este orden exacto (ver GcState.h).
 static const MapeoBoton MAPEO[GC_NUM_BOTONES] = {
-    //  normal           con Z
-    {XB_A,              NADA},          // A
-    {XB_B,              NADA},          // B
-    {XB_X,              NADA},          // X
-    {XB_Y,              NADA},          // Y
-    {NADA,              NADA},          // Z  (la maneja la capa; ver Z_SOLA)
-    {XB_LT,             NADA},          // L  (analógico)
-    {XB_RT,             NADA},          // R  (analógico)
-    {XB_START,          XB_GUIA},       // Start      | Z+Start = botón Xbox
-    {XB_DPAD_ARRIBA,    XB_L3},         // D-pad ↑    | Z+↑ = L3
-    {XB_DPAD_ABAJO,     XB_R3},         // D-pad ↓    | Z+↓ = R3
-    {XB_DPAD_IZQ,       XB_BACK},       // D-pad ←    | Z+← = Back (View)
-    {XB_DPAD_DER,       XB_LB},         // D-pad →    | Z+→ = LB
-    {NADA,              NADA},          // C-stick ↑  (sin Z es el stick derecho)
-    {NADA,              NADA},          // C-stick ↓
-    {NADA,              NADA},          // C-stick ←
-    {NADA,              NADA},          // C-stick →
+    //  normal           con Z           mantener
+    {XB_A,              NADA,           NADA},      // A
+    {XB_B,              NADA,           NADA},      // B
+    {XB_X,              XB_RB,          NADA},      // X          | Z+X = RB
+    {XB_Y,              XB_LB,          NADA},      // Y          | Z+Y = LB
+    {NADA,              NADA,           NADA},      // Z  (es la tecla de capa; ver MODO_Z)
+    {XB_LT,             NADA,           NADA},      // L  (analógico)
+    {XB_RT,             NADA,           NADA},      // R  (analógico)
+    {XB_START,          XB_BACK,        XB_GUIA},   // Start      | toque = Start, mantener = Xbox, Z+Start = Back
+    {XB_DPAD_ARRIBA,    XB_L3,          NADA},      // D-pad ↑    | Z+↑ = L3
+    {XB_DPAD_ABAJO,     XB_R3,          NADA},      // D-pad ↓    | Z+↓ = R3
+    {XB_DPAD_IZQ,       NADA,           NADA},      // D-pad ←    | (Z+← libre)
+    {XB_DPAD_DER,       NADA,           NADA},      // D-pad →    | (Z+→ libre)
+    {NADA,              NADA,           NADA},      // C-stick ↑  (sin Z es el stick derecho)
+    {NADA,              NADA,           NADA},      // C-stick ↓
+    {NADA,              NADA,           NADA},      // C-stick ←
+    {NADA,              NADA,           NADA},      // C-stick →
 };
 
 #endif
