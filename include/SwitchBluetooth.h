@@ -56,6 +56,9 @@ class SwitchBluetooth {
   static void start_search();
   static void begin_shutdown();
   static void wait_for_wake();
+  static void give_up();
+  static void start_search_now();
+  static void enter_waiting();
   static void handle_shortcuts(const SwitchBtReport &r);
   static bool read_buttons(SwitchBtReport *r);
   static bool any_button(const SwitchBtReport &r);
