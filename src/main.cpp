@@ -5,7 +5,9 @@
 #include "N64Controller.h"
 #include "pico/stdlib.h"
 
-#ifdef SWITCH_BLUETOOTH
+#if defined(XINPUT)
+#include "XInputUsb.h"
+#elif defined(SWITCH_BLUETOOTH)
 #include "SwitchBluetooth.h"
 #else
 #include "SwitchUsb.h"
@@ -19,6 +21,13 @@
 
 int main() {
   stdio_init_all();
+
+#ifdef XINPUT
+  // Modo PC: control de Xbox 360 por USB (solo control de Gamecube)
+  static GamecubeController gamecube(3);
+  XInputUsb xinputUsb(&gamecube);
+  xinputUsb.init();  // el control de GC se inicializa dentro, con reintentos
+#else
 
   Controller *controller;
   if (strcmp(controllerType, "N64") == 0) {
@@ -34,4 +43,5 @@ int main() {
   SwitchUsb switchUsb(controller);
   switchUsb.init();
 #endif
+#endif  // XINPUT
 }

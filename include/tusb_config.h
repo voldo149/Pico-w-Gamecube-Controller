@@ -96,7 +96,11 @@ extern "C" {
 #endif
 
 //------------- CLASS -------------//
+#ifdef XINPUT
+#define CFG_TUD_HID 0  // XInput usa su propio driver (XInputUsb.cpp)
+#else
 #define CFG_TUD_HID 2
+#endif
 
 // HID buffer size Should be sufficient to hold ID (if any) + Data
 #define CFG_TUD_HID_EP_BUFSIZE 64

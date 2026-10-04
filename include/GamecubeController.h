@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "Controller.h"
+#include "GcState.h"
 
 class GamecubeController : public Controller {
  public:
@@ -10,6 +11,8 @@ class GamecubeController : public Controller {
   void init();
   void getSwitchUsbReport(SwitchUsbReport *switchUsbReport);
   void getSwitchBtReport(SwitchBtReport *switchBtReport);
+  // Estado normalizado para el modo XInput (sticks -1..1, +y = arriba)
+  void getGcState(GcState *state);
 
  private:
   void updateState();
@@ -17,6 +20,7 @@ class GamecubeController : public Controller {
                                       double *maxAxis);
   uint16_t convertToSwitchBtJoystick(uint8_t axisPos, double *minAxis,
                                      double *maxAxis);
+  float normalizeAxis(uint8_t axisPos, double *minAxis, double *maxAxis);
   bool _pioReady = false;
   double _maxAnalogX = 0.5;
   double _minAnalogX = -0.5;

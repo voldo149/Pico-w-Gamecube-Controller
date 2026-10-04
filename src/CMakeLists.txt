@@ -2,6 +2,14 @@
 set(CONTROLLER_TYPE "Gamecube" CACHE STRING "Tipo de control: Gamecube o N64")
 add_compile_definitions(CONTROLLER_TYPE="${CONTROLLER_TYPE}")
 
+# XINPUT=ON: control de Xbox 360 por USB para PC (solo Gamecube), con el mapeo
+# y la capa Z de include/MapeoXInput.h. Ignora SWITCH_BLUETOOTH.
+option(XINPUT "Control de Xbox 360 (XInput) por USB para PC" OFF)
+if(XINPUT)
+  add_compile_definitions(XINPUT)
+  set(SWITCH_BLUETOOTH OFF CACHE BOOL "" FORCE)
+endif()
+
 # Conexion a la Switch: ON = Bluetooth (requiere Pico W), OFF = USB (Pico o Pico W)
 option(SWITCH_BLUETOOTH "Conectar a la Switch por Bluetooth (solo Pico W)" ON)
 if(SWITCH_BLUETOOTH)
@@ -15,11 +23,16 @@ if(LOW_POWER_MODE)
 endif()
 
 add_subdirectory(otherController)
-add_subdirectory(switchController)
 
 add_executable(${PROJECT_NAME} main.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(${PROJECT_NAME} pico_stdlib switchBluetooth switchUsb n64 gamecube)
+if(XINPUT)
+  add_subdirectory(xinputController)
+  target_link_libraries(${PROJECT_NAME} pico_stdlib xinputUsb n64 gamecube)
+else()
+  add_subdirectory(switchController)
+  target_link_libraries(${PROJECT_NAME} pico_stdlib switchBluetooth switchUsb n64 gamecube)
+endif()
 
 pico_enable_stdio_usb(${PROJECT_NAME} 0)
 pico_enable_stdio_uart(${PROJECT_NAME} 1)

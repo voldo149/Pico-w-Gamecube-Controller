@@ -12,13 +12,35 @@ con cambios propios: mapeo de gatillos (L analógico = ZL, L + D-pad = L; Z = R)
 | `gc_picow_bluetooth.uf2` | Bluetooth (Pico W) | Pro Controller |
 | `gc_picow_bluetooth_bateria.uf2` | Bluetooth, versión batería (arranca dormido y se apaga solo) | Pro Controller |
 | `gc_picow_usb.uf2` | USB | HORIPAD (HORI, compatible con Switch) |
+| `gc_picow_xinput.uf2` | USB, para PC | **Control de Xbox 360** (con capa Z) |
 | `retro_pico_switch.uf2` | USB (compilación anterior, nombre por defecto) | HORIPAD |
 
 Para instalar: mantener BOOTSEL al conectar la Pico por USB y arrastrar el `.uf2` a la unidad que aparece.
 
+## Modo PC: control de Xbox 360 (`gc_picow_xinput.uf2`)
+
+Windows lo reconoce como un control de Xbox 360 normal (XInput), sin instalar nada.
+El mapeo se edita en [`include/MapeoXInput.h`](include/MapeoXInput.h).
+
+| GameCube | Xbox 360 | Con Z mantenida |
+|---|---|---|
+| A / B / X / Y | A / B / X / Y | — |
+| L / R | LT / RT (analógicos) | — |
+| Start | Start | **Botón Xbox** |
+| D-pad ↑ | D-pad ↑ | **L3** |
+| D-pad ↓ | D-pad ↓ | **R3** |
+| D-pad ← | D-pad ← | **Back** |
+| D-pad → | D-pad → | **LB** |
+| Stick / C-stick | Stick izquierdo / derecho | — |
+| **Z sola** | toque = **RB** · mantener 0.3 s = RB mantenido | |
+
+Capa Z: para un combo, presiona el otro botón antes de 0.3 s. Los botones sin función
+"con Z" siguen funcionando normal aunque Z esté presionada. Las pruebas de esta lógica
+están en `tests/test_remapeo.cpp` y corren en la PC.
+
 ## Compilar
 
-`CMakeLists.txt` acepta `-DPICO_BOARD=pico_w|pico`, `-DSWITCH_BLUETOOTH=ON|OFF`,
+`CMakeLists.txt` acepta `-DPICO_BOARD=pico_w|pico`, `-DXINPUT=ON|OFF` (Xbox 360 por USB), `-DSWITCH_BLUETOOTH=ON|OFF`,
 `-DLOW_POWER_MODE=ON|OFF` y `-DCONTROLLER_TYPE=Gamecube|N64`. También hay un `Dockerfile`.
 
 ---

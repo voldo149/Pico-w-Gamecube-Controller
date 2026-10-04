@@ -202,3 +202,39 @@ uint16_t GamecubeController::convertToSwitchBtJoystick(uint8_t axisPos,
   double scaledAxisPos = getScaledAnalogAxis(unscaledAxisPos, minAxis, maxAxis);
   return scaledAxisPos * SWITCH_BT_JOYSTICK_MID + SWITCH_BT_JOYSTICK_MID - 1;
 }
+float GamecubeController::normalizeAxis(uint8_t axisPos, double *minAxis,
+                                        double *maxAxis) {
+  double unscaledAxisPos =
+      (axisPos - GC_JOYSTICK_MID) / (double)GC_JOYSTICK_MID;
+  return (float)getScaledAnalogAxis(unscaledAxisPos, minAxis, maxAxis);
+}
+
+void GamecubeController::getGcState(GcState *state) {
+  updateState();
+  const uint8_t b0 = _controllerState[0];
+  const uint8_t b1 = _controllerState[1];
+  uint32_t botones = 0;
+  if (b0 & GC_MASK_A) botones |= GC_BIT(GC_A);
+  if (b0 & GC_MASK_B) botones |= GC_BIT(GC_B);
+  if (b0 & GC_MASK_X) botones |= GC_BIT(GC_X);
+  if (b0 & GC_MASK_Y) botones |= GC_BIT(GC_Y);
+  if (b0 & GC_MASK_START) botones |= GC_BIT(GC_START);
+  if (b1 & GC_MASK_Z) botones |= GC_BIT(GC_Z);
+  // L/R aqui solo es el clic digital; el remapeo agrega el umbral analogico
+  if (b1 & GC_MASK_L) botones |= GC_BIT(GC_L);
+  if (b1 & GC_MASK_R) botones |= GC_BIT(GC_R);
+  // El d-pad del GC son 4 bits independientes (arriba 0x8, abajo 0x4,
+  // derecha 0x2, izquierda 0x1), asi que las diagonales salen solas
+  if (b1 & GC_MASK_DPAD_UP) botones |= GC_BIT(GC_DPAD_ARRIBA);
+  if (b1 & GC_MASK_DPAD_DOWN) botones |= GC_BIT(GC_DPAD_ABAJO);
+  if (b1 & GC_MASK_DPAD_LEFT) botones |= GC_BIT(GC_DPAD_IZQ);
+  if (b1 & GC_MASK_DPAD_RIGHT) botones |= GC_BIT(GC_DPAD_DER);
+  state->botones = botones;
+
+  state->lx = normalizeAxis(_controllerState[2], &_minAnalogX, &_maxAnalogX);
+  state->ly = normalizeAxis(_controllerState[3], &_minAnalogY, &_maxAnalogY);
+  state->cx = normalizeAxis(_controllerState[4], &_minCX, &_maxCX);
+  state->cy = normalizeAxis(_controllerState[5], &_minCY, &_maxCY);
+  state->lAnalog = _controllerState[6];
+  state->rAnalog = _controllerState[7];
+}
