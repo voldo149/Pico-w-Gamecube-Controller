@@ -1,5 +1,6 @@
 #include "Remapeo.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "MapeoXInput.h"
@@ -10,6 +11,20 @@ static int16_t aEje(float v) {
   if (v > 1.0f) v = 1.0f;
   if (v < -1.0f) v = -1.0f;
   return (int16_t)(v * 32767.0f);
+}
+
+// Zona muerta radial con reescalado: dentro de la zona = 0, fuera va de 0 a 1
+static void zonaMuerta(float *x, float *y, float zona) {
+  if (zona <= 0.0f) return;
+  const float mag = sqrtf(*x * *x + *y * *y);
+  if (mag <= zona) {
+    *x = *y = 0.0f;
+    return;
+  }
+  float nueva = (mag - zona) / (1.0f - zona);
+  if (nueva > 1.0f) nueva = 1.0f;
+  *x *= nueva / mag;
+  *y *= nueva / mag;
 }
 
 static uint8_t aGatillo(uint8_t analogico, bool clic) {
@@ -120,10 +135,13 @@ void Remapeo::actualizar(const GcState &gc, uint32_t ahora, XInputReport *salida
   salida->botones = (uint16_t)(sal & 0xFFFF);
   salida->lt = lt;
   salida->rt = rt;
-  salida->lx = aEje(gc.lx);
-  salida->ly = aEje(gc.ly);
-  salida->rx = cAnalogico ? aEje(gc.cx) : 0;
-  salida->ry = cAnalogico ? aEje(gc.cy) : 0;
+  float lx = gc.lx, ly = gc.ly, cx = gc.cx, cy = gc.cy;
+  zonaMuerta(&lx, &ly, ZONA_MUERTA_IZQ);
+  zonaMuerta(&cx, &cy, ZONA_MUERTA_DER);
+  salida->lx = aEje(lx);
+  salida->ly = aEje(ly);
+  salida->rx = cAnalogico ? aEje(cx) : 0;
+  salida->ry = cAnalogico ? aEje(cy) : 0;
 
   _botonesAntes = b;
 }

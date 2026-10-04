@@ -48,6 +48,11 @@
 // Valor analógico al que el gatillo ya se manda al 100%
 #define GATILLO_MAX 0xC8
 
+// Zona muerta de los sticks (0.05 = 5%). Radial: por debajo vale 0 y el resto se
+// reescala para que el stick siga llegando al 100% sin saltos.
+#define ZONA_MUERTA_IZQ 0.05f
+#define ZONA_MUERTA_DER 0.0f
+
 // C-stick como botones en la capa Z: qué tanto hay que moverlo (0..1)
 #define C_STICK_UMBRAL 0.5f
 

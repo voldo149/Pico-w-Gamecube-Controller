@@ -7,6 +7,8 @@
 
 #if defined(XINPUT)
 #include "XInputUsb.h"
+#elif defined(XBOX_BT)
+#include "XboxBle.h"
 #elif defined(SWITCH_BLUETOOTH)
 #include "SwitchBluetooth.h"
 #else
@@ -27,6 +29,10 @@ int main() {
   static GamecubeController gamecube(3);
   XInputUsb xinputUsb(&gamecube);
   xinputUsb.init();  // el control de GC se inicializa dentro, con reintentos
+#elif defined(XBOX_BT)
+  // Modo PC: control de Xbox por Bluetooth LE (solo control de Gamecube)
+  static GamecubeController gamecube(3);
+  XboxBle::init(&gamecube);  // el control de GC se inicializa dentro, con reintentos
 #else
 
   Controller *controller;
@@ -43,5 +49,5 @@ int main() {
   SwitchUsb switchUsb(controller);
   switchUsb.init();
 #endif
-#endif  // XINPUT
+#endif  // XINPUT / XBOX_BT
 }

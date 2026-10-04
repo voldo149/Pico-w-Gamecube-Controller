@@ -13,14 +13,20 @@ con cambios propios: mapeo de gatillos (L analógico = ZL, L + D-pad = L; Z = R)
 | `gc_picow_bluetooth_bateria.uf2` | Bluetooth, versión batería (arranca dormido y se apaga solo) | Pro Controller |
 | `gc_picow_usb.uf2` | USB | HORIPAD (HORI, compatible con Switch) |
 | `gc_picow_xinput.uf2` | USB, para PC | **Control de Xbox 360** (con capa Z) |
+| `gc_picow_xbox_bt.uf2` | Bluetooth LE, para PC | **Control de Xbox (Series)** (con capa Z) |
 | `retro_pico_switch.uf2` | USB (compilación anterior, nombre por defecto) | HORIPAD |
 
 Para instalar: mantener BOOTSEL al conectar la Pico por USB y arrastrar el `.uf2` a la unidad que aparece.
 
-## Modo PC: control de Xbox 360 (`gc_picow_xinput.uf2`)
+## Modo PC: control de Xbox (`gc_picow_xinput.uf2` por USB, `gc_picow_xbox_bt.uf2` por Bluetooth)
 
-Windows lo reconoce como un control de Xbox 360 normal (XInput), sin instalar nada.
-El mapeo se edita en [`include/MapeoXInput.h`](include/MapeoXInput.h).
+- **USB:** Windows lo reconoce como control de Xbox 360 (XInput), sin instalar nada.
+- **Bluetooth:** se anuncia como "Xbox Wireless Controller" (modelo Series, Bluetooth LE).
+  Se empareja desde Configuración → Bluetooth → Agregar dispositivo, sin PIN. LED
+  parpadeando = esperando conexión, fijo = conectado. Necesita Windows 10/11 actualizado.
+
+Los dos usan el mismo mapeo, que se edita en [`include/MapeoXInput.h`](include/MapeoXInput.h)
+(incluye zona muerta del stick izquierdo, 5% por defecto).
 
 | GameCube | Xbox 360 | Con Z mantenida |
 |---|---|---|
@@ -40,11 +46,12 @@ Capa Z: mientras mantienes Z, los botones con función "con Z" cambian al instan
 (`MODO_Z` también permite que Z prenda/apague la capa con cada toque). Los botones sin
 función "con Z" siguen funcionando normal. Cada botón puede tener toque/mantener
 (columna "mantener"); el toque se manda al soltar. Las pruebas de esta lógica
-están en `tests/test_remapeo.cpp` y corren en la PC.
+están en `tests/` (`test_remapeo.cpp`, `test_xbox_bt.cpp`) y corren en la PC.
 
 ## Compilar
 
-`CMakeLists.txt` acepta `-DPICO_BOARD=pico_w|pico`, `-DXINPUT=ON|OFF` (Xbox 360 por USB), `-DSWITCH_BLUETOOTH=ON|OFF`,
+`CMakeLists.txt` acepta `-DPICO_BOARD=pico_w|pico`, `-DXINPUT=ON|OFF` (Xbox 360 por USB),
+`-DXBOX_BT=ON|OFF` (Xbox por Bluetooth LE, solo Pico W), `-DSWITCH_BLUETOOTH=ON|OFF`,
 `-DLOW_POWER_MODE=ON|OFF` y `-DCONTROLLER_TYPE=Gamecube|N64`. También hay un `Dockerfile`.
 
 ---

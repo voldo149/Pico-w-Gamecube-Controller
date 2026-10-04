@@ -132,12 +132,34 @@ int main() {
   {
     Remapeo m;  // sticks
     GcState s = gc(B(GC_Z), 0, 0, 0.5f, -1.0f);
-    s.lx = 1.0f;
-    s.ly = -0.5f;
+    s.lx = 0.0f;
+    s.ly = -1.0f;
     m.actualizar(s, 0, &r);
-    CHECK(r.lx == 32767 && r.ly == -16383 && r.rx == 16383 && r.ry == -32767,
-          "sticks pasan tal cual (+y arriba), aun con Z");
+    CHECK(r.lx == 0 && r.ly == -32767 && r.rx == 16383 && r.ry == -32767,
+          "sticks: +y arriba, C-stick tal cual, aun con Z");
     CHECK(r.reportId == 0 && r.reportSize == 20, "cabecera del reporte XInput correcta");
+  }
+  {
+    Remapeo m;  // zona muerta del stick izquierdo (5%)
+    GcState s = gc(0);
+    s.lx = 0.04f;
+    s.ly = 0.02f;
+    m.actualizar(s, 0, &r);
+    CHECK(r.lx == 0 && r.ly == 0, "stick izq dentro del 5% -> 0");
+    s.lx = 0.06f;
+    s.ly = 0.0f;
+    m.actualizar(s, 10, &r);
+    CHECK(r.lx > 0 && r.lx < 1000, "stick izq justo afuera del 5% -> empieza desde casi 0, sin salto");
+    s.lx = 1.0f;
+    m.actualizar(s, 20, &r);
+    CHECK(r.lx == 32767, "stick izq al tope -> sigue llegando al 100%");
+    s.lx = -0.7071f;
+    s.ly = 0.7071f;
+    m.actualizar(s, 30, &r);
+    CHECK(r.lx < -23000 && r.ly > 23000, "diagonal al tope -> se mantiene la direccion");
+    s = gc(0, 0, 0, 0.03f, 0.0f);
+    m.actualizar(s, 40, &r);
+    CHECK(r.rx > 0, "C-stick sin zona muerta (0%) -> pasa tal cual");
   }
   printf("\n%s (%d fallos)\n", fallos ? "HAY FALLOS" : "TODO BIEN", fallos);
   return fallos ? 1 : 0;
