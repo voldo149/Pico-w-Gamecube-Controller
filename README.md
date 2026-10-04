@@ -34,6 +34,8 @@ El mapeo se edita en [`include/MapeoXInput.h`](include/MapeoXInput.h).
 | Stick / C-stick | Stick izquierdo / derecho | — |
 | **Z sola** | toque = **RB** · mantener 0.3 s = RB mantenido | |
 
+**A+B+Z+Start durante 3 s** reinicia la Pico en modo carga de `.uf2` (BOOTSEL), igual que el firmware Bluetooth.
+
 Capa Z: para un combo, presiona el otro botón antes de 0.3 s. Los botones sin función
 "con Z" siguen funcionando normal aunque Z esté presionada. Las pruebas de esta lógica
 están en `tests/test_remapeo.cpp` y corren en la PC.
