@@ -22,8 +22,21 @@ Para instalar: mantener BOOTSEL al conectar la Pico por USB y arrastrar el `.uf2
 
 - **USB:** Windows lo reconoce como control de Xbox 360 (XInput), sin instalar nada.
 - **Bluetooth:** se anuncia como "Xbox Wireless Controller" (modelo Series, Bluetooth LE).
-  Se empareja desde Configuración → Bluetooth → Agregar dispositivo, sin PIN. LED
-  parpadeando = esperando conexión, fijo = conectado. Necesita Windows 10/11 actualizado.
+  Se empareja desde Configuración → Bluetooth → Agregar dispositivo, sin PIN, y después
+  se reconecta solo a esa PC. Necesita Windows 10/11 actualizado.
+
+  | Atajo (Bluetooth) | Qué hace |
+  |---|---|
+  | Y+Start 2 s | Emparejar una PC nueva (visible 60 s) |
+  | Y+Start 8 s | Olvidar todas las PCs y quedar visible |
+  | L+R+Start 3 s | Apagar (se duerme) |
+  | Cualquier botón 0.3 s | Despertar |
+  | 5 min sin usarlo | Se apaga solo |
+  | A+B+Z+Start 3 s | Modo carga de `.uf2` (BOOTSEL) |
+
+  LED: fijo = conectado · parpadeo lento = esperando a la PC · parpadeo rápido =
+  emparejando · apagado = dormido. La primera vez (sin PCs guardadas) arranca visible.
+  Mientras se mantiene un atajo no se manda nada al juego.
 
 Los dos usan el mismo mapeo, que se edita en [`include/MapeoXInput.h`](include/MapeoXInput.h)
 (incluye zona muerta del stick izquierdo, 5% por defecto).

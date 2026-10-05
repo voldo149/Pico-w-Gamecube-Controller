@@ -21,6 +21,7 @@ extern "C" {
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
+#include "hardware/watchdog.h"
 #include "xbox_ble.h"  // generado desde xbox_ble.gatt
 
 // Cada cuanto se lee el control (ms)
@@ -170,6 +171,48 @@ static const uint8_t xbox_hid_descriptor[] = {
     0xC0,              // End Collection
 };
 
+// ===================== Atajos y energia =====================
+//   Y+Start          2 s: emparejar una PC nueva (visible EMPAREJAR_MS)
+//                    8 s: ademas olvidar todas las PCs emparejadas
+//   L+R+Start        3 s: apagar (se duerme; cualquier boton 0.3 s lo despierta)
+//   A+B+Z+Start      3 s: modo carga de .uf2 (BOOTSEL)
+//   Sin tocar nada IDLE_OFF_MS: se apaga solo
+// Mientras uno de estos combos esta presionado no se manda nada al juego.
+
+#define ATAJO_EMPAREJAR (GC_BIT(GC_Y) | GC_BIT(GC_START))
+#define ATAJO_APAGAR (GC_BIT(GC_L) | GC_BIT(GC_R) | GC_BIT(GC_START))
+
+#define EMPAREJAR_HOLD_MS 2000
+#define OLVIDAR_HOLD_MS 8000
+#define APAGAR_HOLD_MS 3000
+#define EMPAREJAR_MS 60000                  // visible 60 s para emparejar
+#define IDLE_OFF_MS (5UL * 60UL * 1000UL)   // 0 = nunca apagarse solo
+#define DESPERTAR_MS 300                    // dormido: boton 0.3 s = despertar
+#define ACTIVIDAD_STICK 0.15f               // movimiento minimo que cuenta como uso
+
+// Aviso que sobrevive al reinicio: "arranca dormido"
+#define DORMIR_MAGIC 0x534C5050  // 'SLPP'
+
+struct Mantener {
+  uint32_t desde = 0;
+  bool hecho = false;
+};
+
+// true una sola vez cuando 'activo' lleva 'ms' milisegundos seguidos
+static bool mantenido(Mantener &m, bool activo, uint32_t ahora, uint32_t ms) {
+  if (!activo) {
+    m.desde = 0;
+    m.hecho = false;
+    return false;
+  }
+  if (m.desde == 0) m.desde = ahora ? ahora : 1;
+  if (!m.hecho && ahora - m.desde >= ms) {
+    m.hecho = true;
+    return true;
+  }
+  return false;
+}
+
 // ===================== Estado =====================
 
 static GamecubeController *_controller;
@@ -185,14 +228,23 @@ static XboxBtReport _reporte;
 static XboxBtReport _enviado;
 static uint32_t _ultimoEnvio = 0;
 
+static bool _emparejando = false;    // visible y aceptando PCs nuevas
+static uint32_t _emparejarHasta = 0;  // 0 = sin limite (no hay ninguna PC guardada)
+static bool _bloqueado = false;      // un atajo esta presionado: no se manda nada
+static bool _apagando = false;
+static uint32_t _apagarEn = 0;
+static uint32_t _ultimaActividad = 0;
+static Mantener _mEmparejar, _mOlvidar, _mApagar;
+
 static btstack_timer_source_t _timer;
 static btstack_packet_callback_registration_t _hciCallback;
 static btstack_packet_callback_registration_t _smCallback;
 static hids_device_report_t _reportesHid[2];
 
-static const uint8_t adv_data[] = {
-    // Flags: general discoverable, sin BR/EDR
-    0x02, BLUETOOTH_DATA_TYPE_FLAGS, 0x06,
+// Anuncio: flags 0x06 = visible ("general discoverable"), 0x04 = oculto. Oculto,
+// la PC ya emparejada igual se reconecta, pero no aparece en "Agregar dispositivo".
+static uint8_t adv_data[] = {
+    0x02, BLUETOOTH_DATA_TYPE_FLAGS, 0x04,
     // Apariencia: HID Gamepad (0x03C4)
     0x03, BLUETOOTH_DATA_TYPE_APPEARANCE, 0xC4, 0x03,
     // Servicio HID (0x1812)
@@ -207,11 +259,48 @@ static const uint8_t scan_resp_data[] = {
 
 static void led(bool on) { cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, on); }
 
-// ===================== Bucle (temporizador de BTstack) =====================
+static void anunciar(bool visible) {
+  adv_data[2] = visible ? 0x06 : 0x04;
+  gap_advertisements_set_data(sizeof(adv_data), adv_data);
+}
 
-static void tick(btstack_timer_source_t *ts) {
-  const uint32_t ahora = to_ms_since_boot(get_absolute_time());
+static void modoEmparejar(uint32_t ahora, bool sinLimite) {
+  _emparejando = true;
+  _emparejarHasta = sinLimite ? 0 : ahora + EMPAREJAR_MS;
+  // Solo cabe una PC a la vez: se suelta la actual para dejar entrar a la nueva
+  if (_con != HCI_CON_HANDLE_INVALID) gap_disconnect(_con);
+  anunciar(true);
+}
 
+static void salirDeEmparejar() {
+  _emparejando = false;
+  _emparejarHasta = 0;
+  anunciar(false);
+}
+
+static void olvidarTodo(uint32_t ahora) {
+  for (int i = 0; i < le_device_db_max_count(); i++) le_device_db_remove(i);
+  modoEmparejar(ahora, true);
+}
+
+static void apagar(uint32_t ahora) {
+  if (_apagando) return;
+  _apagando = true;
+  _apagarEn = ahora + 800;  // tiempo para desconectar limpio
+  gap_advertisements_enable(0);
+  if (_con != HCI_CON_HANDLE_INVALID) gap_disconnect(_con);
+}
+
+static bool hayActividad(const GcState &gc) {
+  return botonesAtajo(gc) != 0 ||
+         (gc.botones & (GC_BIT(GC_DPAD_ARRIBA) | GC_BIT(GC_DPAD_ABAJO) |
+                        GC_BIT(GC_DPAD_IZQ) | GC_BIT(GC_DPAD_DER))) ||
+         gc.lx > ACTIVIDAD_STICK || gc.lx < -ACTIVIDAD_STICK || gc.ly > ACTIVIDAD_STICK ||
+         gc.ly < -ACTIVIDAD_STICK || gc.cx > ACTIVIDAD_STICK || gc.cx < -ACTIVIDAD_STICK ||
+         gc.cy > ACTIVIDAD_STICK || gc.cy < -ACTIVIDAD_STICK;
+}
+
+static bool leerControl() {
   try {
     if (!_gcListo) {
       _controller->init();  // reintenta hasta que el control de GC responda
@@ -219,6 +308,7 @@ static void tick(btstack_timer_source_t *ts) {
     }
     _controller->getGcState(&_gc);
     _fallos = 0;
+    return true;
   } catch (...) {
     // Un fallo suelto se ignora; si el control se desconecta, todo se suelta
     if (++_fallos >= 3) {
@@ -226,11 +316,62 @@ static void tick(btstack_timer_source_t *ts) {
       _gcListo = false;
       _fallos = 3;
     }
+    return false;
+  }
+}
+
+// ===================== Bucle (temporizador de BTstack) =====================
+
+static void tick(btstack_timer_source_t *ts) {
+  const uint32_t ahora = to_ms_since_boot(get_absolute_time());
+
+  if (_apagando) {
+    led(false);
+    if ((int32_t)(ahora - _apagarEn) >= 0) {
+      watchdog_hw->scratch[2] = DORMIR_MAGIC;
+      watchdog_reboot(0, 0, 10);
+      while (true) tight_loop_contents();
+    }
+    btstack_run_loop_set_timer(ts, PERIODO_MS);
+    btstack_run_loop_add_timer(ts);
+    return;
   }
 
+  leerControl();
+
+  // Atajos
+  const uint32_t atajo = botonesAtajo(_gc);
+  if (atajo == ATAJO_EMPAREJAR || atajo == ATAJO_APAGAR || atajo == ATAJO_BOOTSEL) {
+    _bloqueado = true;
+  } else if (atajo == 0) {
+    _bloqueado = false;
+  }
   revisarAtajoBootsel(_gc, ahora);
+  if (mantenido(_mEmparejar, atajo == ATAJO_EMPAREJAR, ahora, EMPAREJAR_HOLD_MS)) {
+    modoEmparejar(ahora, false);
+  }
+  if (mantenido(_mOlvidar, atajo == ATAJO_EMPAREJAR, ahora, OLVIDAR_HOLD_MS)) {
+    olvidarTodo(ahora);
+  }
+  if (mantenido(_mApagar, atajo == ATAJO_APAGAR, ahora, APAGAR_HOLD_MS)) {
+    apagar(ahora);
+  }
+
+  // Apagado automatico por inactividad
+  if (hayActividad(_gc)) _ultimaActividad = ahora;
+  if (IDLE_OFF_MS > 0 && ahora - _ultimaActividad >= IDLE_OFF_MS) apagar(ahora);
+
+  // Fin de la ventana para emparejar
+  if (_emparejando && _emparejarHasta != 0 && (int32_t)(ahora - _emparejarHasta) >= 0) {
+    salirDeEmparejar();
+  }
+
+  // Reporte para el juego (vacio mientras se mantiene un atajo)
+  GcState entrada = _gc;
+  if (_bloqueado) memset(&entrada, 0, sizeof(entrada));
   XInputReport x;
-  _remapeo.actualizar(_gc, ahora, &x);
+  _remapeo.actualizar(entrada, ahora, &x);
+  if (_bloqueado) memset(&x, 0, sizeof(x));
   aXboxBt(x, &_reporte);
 
   if (_con != HCI_CON_HANDLE_INVALID && _reportesActivos && !_pendiente &&
@@ -240,8 +381,12 @@ static void tick(btstack_timer_source_t *ts) {
     hids_device_request_can_send_now_event(_con);
   }
 
-  // LED: fijo = conectado, parpadeo = esperando conexion
-  led(_reportesActivos ? true : ((ahora / 500) % 2 == 0));
+  // LED: fijo = conectado, rapido = emparejando, lento = esperando a la PC
+  if (_emparejando) {
+    led((ahora / 125) % 2 == 0);
+  } else {
+    led(_reportesActivos ? true : ((ahora / 500) % 2 == 0));
+  }
 
   btstack_run_loop_set_timer(ts, PERIODO_MS);
   btstack_run_loop_add_timer(ts);
@@ -259,11 +404,30 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packe
       _reportesActivos = false;
       _pendiente = false;
       break;
-    case SM_EVENT_JUST_WORKS_REQUEST:
-      sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
+    // Emparejar solo se acepta en modo emparejar; las PCs ya guardadas se
+    // reconectan con sus llaves y no pasan por aqui.
+    case SM_EVENT_JUST_WORKS_REQUEST: {
+      hci_con_handle_t h = sm_event_just_works_request_get_handle(packet);
+      if (_emparejando) {
+        sm_just_works_confirm(h);
+      } else {
+        sm_bonding_decline(h);
+      }
       break;
-    case SM_EVENT_NUMERIC_COMPARISON_REQUEST:
-      sm_numeric_comparison_confirm(sm_event_numeric_comparison_request_get_handle(packet));
+    }
+    case SM_EVENT_NUMERIC_COMPARISON_REQUEST: {
+      hci_con_handle_t h = sm_event_numeric_comparison_request_get_handle(packet);
+      if (_emparejando) {
+        sm_numeric_comparison_confirm(h);
+      } else {
+        sm_bonding_decline(h);
+      }
+      break;
+    }
+    case SM_EVENT_PAIRING_COMPLETE:
+      if (sm_event_pairing_complete_get_status(packet) == ERROR_CODE_SUCCESS) {
+        salirDeEmparejar();
+      }
       break;
     case HCI_EVENT_HIDS_META:
       switch (hci_event_hids_meta_get_subevent_code(packet)) {
@@ -295,12 +459,38 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packe
   }
 }
 
+// ===================== Dormido =====================
+
+// Radio apagada. Primero espera a que todo este suelto (para no despertar con
+// el mismo atajo de apagar) y despues a que un boton lleve DESPERTAR_MS.
+static void esperarDespertar() {
+  uint32_t suelto = 0, presionado = 0;
+  while (true) {
+    const bool ok = leerControl();
+    const bool boton = ok && botonesAtajo(_gc) != 0;
+    const uint32_t ahora = to_ms_since_boot(get_absolute_time());
+    if (!boton) {
+      presionado = 0;
+      if (suelto == 0) suelto = ahora ? ahora : 1;
+    } else if (suelto != 0 && ahora - suelto >= DESPERTAR_MS) {
+      if (presionado == 0) presionado = ahora ? ahora : 1;
+      if (ahora - presionado >= DESPERTAR_MS) return;
+    }
+    sleep_ms(ok ? 20 : 500);
+  }
+}
+
 // ===================== Arranque =====================
 
 void XboxBle::init(GamecubeController *controller) {
   _controller = controller;
   memset(&_gc, 0, sizeof(_gc));
   memset(&_enviado, 0xFF, sizeof(_enviado));  // fuerza el primer envio
+
+  // Si venimos de "apagar", la radio no se enciende hasta que se presione un boton
+  const bool dormir = (watchdog_hw->scratch[2] == DORMIR_MAGIC);
+  watchdog_hw->scratch[2] = 0;
+  if (dormir) esperarDespertar();
 
   if (cyw43_arch_init()) return;
   led(true);
@@ -337,9 +527,16 @@ void XboxBle::init(GamecubeController *controller) {
   bd_addr_t sin_direccion;
   memset(sin_direccion, 0, sizeof(sin_direccion));
   gap_advertisements_set_params(0x0030, 0x0030, 0, 0, sin_direccion, 0x07, 0x00);
-  gap_advertisements_set_data(sizeof(adv_data), (uint8_t *)adv_data);
   gap_scan_response_set_data(sizeof(scan_resp_data), (uint8_t *)scan_resp_data);
+  // Sin ninguna PC guardada: visible hasta que alguien se empareje
+  const uint32_t ahora = to_ms_since_boot(get_absolute_time());
+  if (le_device_db_count() == 0) {
+    modoEmparejar(ahora, true);
+  } else {
+    anunciar(false);
+  }
   gap_advertisements_enable(1);
+  _ultimaActividad = ahora;
 
   _hciCallback.callback = &packet_handler;
   hci_add_event_handler(&_hciCallback);

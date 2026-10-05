@@ -5,19 +5,25 @@
 #include "MapeoXInput.h"
 #include "pico/bootrom.h"
 
-// A+B+Z+Start (exactamente esos; d-pad y palancas se ignoran) durante 3 s
-// reinicia la Pico en modo carga de .uf2 (BOOTSEL).
+
+// Los atajos comparan EXACTAMENTE estos botones (d-pad y palancas se ignoran).
+// L y R cuentan como presionados desde el umbral analogico.
+static inline uint32_t botonesAtajo(const GcState &gc) {
+  uint32_t b = gc.botones & (GC_BIT(GC_A) | GC_BIT(GC_B) | GC_BIT(GC_X) | GC_BIT(GC_Y) |
+                             GC_BIT(GC_Z) | GC_BIT(GC_L) | GC_BIT(GC_R) | GC_BIT(GC_START));
+  if (gc.lAnalog > GATILLO_UMBRAL) b |= GC_BIT(GC_L);
+  if (gc.rAnalog > GATILLO_UMBRAL) b |= GC_BIT(GC_R);
+  return b;
+}
+
+#define ATAJO_BOOTSEL (GC_BIT(GC_A) | GC_BIT(GC_B) | GC_BIT(GC_Z) | GC_BIT(GC_START))
+
+// A+B+Z+Start durante 3 s reinicia la Pico en modo carga de .uf2 (BOOTSEL).
 #define BOOT_HOLD_MS 3000
 
 static inline void revisarAtajoBootsel(const GcState &gc, uint32_t ahora) {
   static uint32_t desde = 0;
-  const uint32_t necesarios =
-      GC_BIT(GC_A) | GC_BIT(GC_B) | GC_BIT(GC_Z) | GC_BIT(GC_START);
-  const uint32_t prohibidos = GC_BIT(GC_X) | GC_BIT(GC_Y) | GC_BIT(GC_L) | GC_BIT(GC_R);
-  const bool gatillos = gc.lAnalog > GATILLO_UMBRAL || gc.rAnalog > GATILLO_UMBRAL;
-  const bool activo = (gc.botones & necesarios) == necesarios &&
-                      !(gc.botones & prohibidos) && !gatillos;
-  if (!activo) {
+  if (botonesAtajo(gc) != ATAJO_BOOTSEL) {
     desde = 0;
     return;
   }

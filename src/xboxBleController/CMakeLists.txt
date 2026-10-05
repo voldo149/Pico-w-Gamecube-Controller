@@ -3,6 +3,7 @@ target_link_libraries(xboxBle
   pico_stdlib
   pico_bootrom
   pico_unique_id
+  hardware_watchdog
   hardware_pio
   gamecube
   pico_btstack_ble
