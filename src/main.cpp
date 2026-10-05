@@ -5,10 +5,10 @@
 #include "N64Controller.h"
 #include "pico/stdlib.h"
 
-#if defined(XINPUT)
+#if defined(GC_PC)
+#include "ModoPc.h"
+#elif defined(XINPUT)
 #include "XInputUsb.h"
-#elif defined(XBOX_BT)
-#include "XboxBle.h"
 #elif defined(SWITCH_BLUETOOTH)
 #include "SwitchBluetooth.h"
 #else
@@ -24,15 +24,15 @@
 int main() {
   stdio_init_all();
 
-#ifdef XINPUT
+#if defined(GC_PC)
+  // Firmware de PC: cable USB = Xbox 360 por USB, sin cable = Xbox por Bluetooth
+  static GamecubeController gamecube(3);
+  modoPc(&gamecube);
+#elif defined(XINPUT)
   // Modo PC: control de Xbox 360 por USB (solo control de Gamecube)
   static GamecubeController gamecube(3);
   XInputUsb xinputUsb(&gamecube);
   xinputUsb.init();  // el control de GC se inicializa dentro, con reintentos
-#elif defined(XBOX_BT)
-  // Modo PC: control de Xbox por Bluetooth LE (solo control de Gamecube)
-  static GamecubeController gamecube(3);
-  XboxBle::init(&gamecube);  // el control de GC se inicializa dentro, con reintentos
 #else
 
   Controller *controller;
@@ -49,5 +49,5 @@ int main() {
   SwitchUsb switchUsb(controller);
   switchUsb.init();
 #endif
-#endif  // XINPUT / XBOX_BT
+#endif  // GC_PC / XINPUT
 }

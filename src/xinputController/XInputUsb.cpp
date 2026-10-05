@@ -8,6 +8,8 @@
 #include <string.h>
 
 #include "AtajoBootsel.h"
+#include "ModoPc.h"
+#include "hardware/watchdog.h"
 #include "device/usbd_pvt.h"
 #include "pico/stdlib.h"
 #include "tusb.h"
@@ -174,36 +176,68 @@ static bool enviarReporte(const XInputReport &reporte) {
 
 // ===================== Bucle principal =====================
 
-void XInputUsb::init() {
-  tusb_init();
+static bool _usbIniciado = false;
 
-  const GcState neutro = {0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0};
-  GcState gc = neutro;
+void XInputUsb::iniciarUsb() {
+  if (_usbIniciado) return;
+  tusb_init();
+  _usbIniciado = true;
+}
+
+bool XInputUsb::hostPresente() {
+  if (!_usbIniciado) return false;
+  tud_task();
+  return tud_mounted();
+}
+
+bool XInputUsb::esperarHost(uint32_t ms) {
+  iniciarUsb();
+  const uint32_t hasta = to_ms_since_boot(get_absolute_time()) + ms;
+  while ((int32_t)(to_ms_since_boot(get_absolute_time()) - hasta) < 0) {
+    watchdog_update();
+    if (hostPresente()) return true;
+    sleep_us(500);
+  }
+  return false;
+}
+
+#ifdef GC_PC
+// Firmware combinado: si la PC deja de atender el USB (cable desconectado con
+// la pila puesta) por este tiempo, se reinicia para pasar a Bluetooth.
+#define USB_SIN_PC_MS 5000
+#endif
+
+void XInputUsb::init() {
+  iniciarUsb();
+  // Vigilante: si algo se congela mas de 2 s, la Pico se reinicia sola
+  watchdog_enable(2000, true);
+
+  GcState gc;
+  memset(&gc, 0, sizeof(gc));
   XInputReport reporte;
-  bool gcListo = false;
-  uint8_t fallos = 0;
+  uint32_t suspendidoDesde = 0;
 
   while (true) {
+    watchdog_update();
     tud_task();
-    if (tud_suspended()) tud_remote_wakeup();
-
-    try {
-      if (!gcListo) {
-        _controller->init();  // reintenta hasta que el control de GC responda
-        gcListo = true;
-      }
-      _controller->getGcState(&gc);
-      fallos = 0;
-    } catch (int e) {
-      // Un fallo suelto se ignora; si el control se desconecta, todo se suelta
-      if (++fallos >= 3) {
-        gc = neutro;
-        gcListo = false;
-        fallos = 3;
-      }
-    }
+    _lector.leer(&gc);
 
     const uint32_t ahora = to_ms_since_boot(get_absolute_time());
+    if (tud_suspended()) {
+      // Despertar a la PC solo si se presiona algo (antes se pedia sin parar)
+      if (botonesAtajo(gc) != 0) tud_remote_wakeup();
+      if (suspendidoDesde == 0) suspendidoDesde = ahora ? ahora : 1;
+#ifdef GC_PC
+      if (ahora - suspendidoDesde >= USB_SIN_PC_MS) {
+        watchdog_hw->scratch[SCRATCH_MODO] = 0;
+        watchdog_reboot(0, 0, 10);
+        while (true) tight_loop_contents();
+      }
+#endif
+    } else {
+      suspendidoDesde = 0;
+    }
+
     revisarAtajoBootsel(gc, ahora);
     _remapeo.actualizar(gc, ahora, &reporte);
     enviarReporte(reporte);

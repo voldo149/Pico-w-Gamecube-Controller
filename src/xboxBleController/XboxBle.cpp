@@ -12,6 +12,9 @@
 #include <string.h>
 
 #include "AtajoBootsel.h"
+#include "LectorGc.h"
+#include "ModoPc.h"
+#include "XInputUsb.h"
 #include "Remapeo.h"
 #include "XboxBtReporte.h"
 #include "btstack.h"
@@ -172,9 +175,9 @@ static const uint8_t xbox_hid_descriptor[] = {
 };
 
 // ===================== Atajos y energia =====================
-//   Y+Start          2 s: emparejar una PC nueva (visible EMPAREJAR_MS)
+//   Y+Start          1 s: emparejar una PC nueva (visible EMPAREJAR_MS)
 //                    8 s: ademas olvidar todas las PCs emparejadas
-//   L+R+Start        3 s: apagar (se duerme; cualquier boton 0.3 s lo despierta)
+//   L+R+Start        3 s: apagar (se duerme; cualquier boton lo despierta)
 //   A+B+Z+Start      3 s: modo carga de .uf2 (BOOTSEL)
 //   Sin tocar nada IDLE_OFF_MS: se apaga solo
 // Mientras uno de estos combos esta presionado no se manda nada al juego.
@@ -182,16 +185,12 @@ static const uint8_t xbox_hid_descriptor[] = {
 #define ATAJO_EMPAREJAR (GC_BIT(GC_Y) | GC_BIT(GC_START))
 #define ATAJO_APAGAR (GC_BIT(GC_L) | GC_BIT(GC_R) | GC_BIT(GC_START))
 
-#define EMPAREJAR_HOLD_MS 2000
+#define EMPAREJAR_HOLD_MS 1000
 #define OLVIDAR_HOLD_MS 8000
 #define APAGAR_HOLD_MS 3000
 #define EMPAREJAR_MS 60000                  // visible 60 s para emparejar
 #define IDLE_OFF_MS (5UL * 60UL * 1000UL)   // 0 = nunca apagarse solo
-#define DESPERTAR_MS 300                    // dormido: boton 0.3 s = despertar
 #define ACTIVIDAD_STICK 0.15f               // movimiento minimo que cuenta como uso
-
-// Aviso que sobrevive al reinicio: "arranca dormido"
-#define DORMIR_MAGIC 0x534C5050  // 'SLPP'
 
 struct Mantener {
   uint32_t desde = 0;
@@ -215,11 +214,9 @@ static bool mantenido(Mantener &m, bool activo, uint32_t ahora, uint32_t ms) {
 
 // ===================== Estado =====================
 
-static GamecubeController *_controller;
+static LectorGc *_lector;
 static Remapeo _remapeo;
 static GcState _gc;
-static bool _gcListo = false;
-static uint8_t _fallos = 0;
 
 static hci_con_handle_t _con = HCI_CON_HANDLE_INVALID;
 static bool _reportesActivos = false;
@@ -300,26 +297,6 @@ static bool hayActividad(const GcState &gc) {
          gc.cy > ACTIVIDAD_STICK || gc.cy < -ACTIVIDAD_STICK;
 }
 
-static bool leerControl() {
-  try {
-    if (!_gcListo) {
-      _controller->init();  // reintenta hasta que el control de GC responda
-      _gcListo = true;
-    }
-    _controller->getGcState(&_gc);
-    _fallos = 0;
-    return true;
-  } catch (...) {
-    // Un fallo suelto se ignora; si el control se desconecta, todo se suelta
-    if (++_fallos >= 3) {
-      memset(&_gc, 0, sizeof(_gc));
-      _gcListo = false;
-      _fallos = 3;
-    }
-    return false;
-  }
-}
-
 // ===================== Bucle (temporizador de BTstack) =====================
 
 static void tick(btstack_timer_source_t *ts) {
@@ -328,16 +305,26 @@ static void tick(btstack_timer_source_t *ts) {
   if (_apagando) {
     led(false);
     if ((int32_t)(ahora - _apagarEn) >= 0) {
-      watchdog_hw->scratch[2] = DORMIR_MAGIC;
+      watchdog_hw->scratch[SCRATCH_DORMIR] = DORMIR_MAGIC;
+      watchdog_hw->scratch[SCRATCH_MODO] = 0;
       watchdog_reboot(0, 0, 10);
       while (true) tight_loop_contents();
     }
+    watchdog_update();
     btstack_run_loop_set_timer(ts, PERIODO_MS);
     btstack_run_loop_add_timer(ts);
     return;
   }
 
-  leerControl();
+  watchdog_update();
+  _lector->leer(&_gc);
+
+  // Cable USB a una PC: tiene prioridad. Se reinicia y arranca como control USB.
+  if (XInputUsb::hostPresente()) {
+    watchdog_hw->scratch[SCRATCH_MODO] = 0;
+    watchdog_reboot(0, 0, 10);
+    while (true) tight_loop_contents();
+  }
 
   // Atajos
   const uint32_t atajo = botonesAtajo(_gc);
@@ -459,40 +446,23 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packe
   }
 }
 
-// ===================== Dormido =====================
-
-// Radio apagada. Primero espera a que todo este suelto (para no despertar con
-// el mismo atajo de apagar) y despues a que un boton lleve DESPERTAR_MS.
-static void esperarDespertar() {
-  uint32_t suelto = 0, presionado = 0;
-  while (true) {
-    const bool ok = leerControl();
-    const bool boton = ok && botonesAtajo(_gc) != 0;
-    const uint32_t ahora = to_ms_since_boot(get_absolute_time());
-    if (!boton) {
-      presionado = 0;
-      if (suelto == 0) suelto = ahora ? ahora : 1;
-    } else if (suelto != 0 && ahora - suelto >= DESPERTAR_MS) {
-      if (presionado == 0) presionado = ahora ? ahora : 1;
-      if (ahora - presionado >= DESPERTAR_MS) return;
-    }
-    sleep_ms(ok ? 20 : 500);
-  }
-}
-
 // ===================== Arranque =====================
 
-void XboxBle::init(GamecubeController *controller) {
-  _controller = controller;
+void XboxBle::init(GamecubeController *controller, bool emparejar) {
+  static LectorGc lector(controller);
+  _lector = &lector;
   memset(&_gc, 0, sizeof(_gc));
   memset(&_enviado, 0xFF, sizeof(_enviado));  // fuerza el primer envio
 
-  // Si venimos de "apagar", la radio no se enciende hasta que se presione un boton
-  const bool dormir = (watchdog_hw->scratch[2] == DORMIR_MAGIC);
-  watchdog_hw->scratch[2] = 0;
-  if (dormir) esperarDespertar();
+  // Para que si la Pico se congela vuelva sola a Bluetooth (ver ModoPc.cpp)
+  watchdog_hw->scratch[SCRATCH_MODO] = MODO_BT_MAGIC;
 
-  if (cyw43_arch_init()) return;
+  // Encender la radio puede tardar: el vigilante se apaga mientras tanto
+  watchdog_disable();
+  if (cyw43_arch_init()) {
+    watchdog_reboot(0, 0, 10);  // sin radio no hay nada que hacer: reintentar
+    while (true) tight_loop_contents();
+  }
   led(true);
 
   // Direccion propia (distinta a la del modo Switch, para que la PC no los confunda)
@@ -532,6 +502,8 @@ void XboxBle::init(GamecubeController *controller) {
   const uint32_t ahora = to_ms_since_boot(get_absolute_time());
   if (le_device_db_count() == 0) {
     modoEmparejar(ahora, true);
+  } else if (emparejar) {
+    modoEmparejar(ahora, false);
   } else {
     anunciar(false);
   }
@@ -549,5 +521,7 @@ void XboxBle::init(GamecubeController *controller) {
   btstack_run_loop_add_timer(&_timer);
 
   hci_power_control(HCI_POWER_ON);
+  // Vigilante: si algo se congela mas de 3 s, la Pico se reinicia sola
+  watchdog_enable(3000, true);
   btstack_run_loop_execute();
 }

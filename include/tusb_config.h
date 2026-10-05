@@ -96,7 +96,7 @@ extern "C" {
 #endif
 
 //------------- CLASS -------------//
-#ifdef XINPUT
+#if defined(XINPUT) || defined(GC_PC)
 #define CFG_TUD_HID 0  // XInput usa su propio driver (XInputUsb.cpp)
 #else
 #define CFG_TUD_HID 2

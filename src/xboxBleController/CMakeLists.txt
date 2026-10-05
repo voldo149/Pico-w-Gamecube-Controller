@@ -1,4 +1,4 @@
-add_library(xboxBle XboxBle.cpp ${CMAKE_CURRENT_LIST_DIR}/../xinputController/Remapeo.cpp)
+add_library(xboxBle XboxBle.cpp)
 target_link_libraries(xboxBle
   pico_stdlib
   pico_bootrom
@@ -6,6 +6,8 @@ target_link_libraries(xboxBle
   hardware_watchdog
   hardware_pio
   gamecube
+  remapeo
+  xinputUsb
   pico_btstack_ble
   pico_btstack_cyw43
   pico_btstack_hci_transport_cyw43

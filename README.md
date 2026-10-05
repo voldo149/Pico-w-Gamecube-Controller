@@ -13,33 +13,38 @@ con cambios propios: mapeo de gatillos (L analógico = ZL, L + D-pad = L; Z = R)
 | `gc_picow_bluetooth_bateria.uf2` | Bluetooth, versión batería (arranca dormido y se apaga solo) | Pro Controller |
 | `gc_picow_usb.uf2` | USB | HORIPAD (HORI, compatible con Switch) |
 | `gc_picow_xinput.uf2` | USB, para PC | **Control de Xbox 360** (con capa Z) |
-| `gc_picow_xbox_bt.uf2` | Bluetooth LE, para PC | **Control de Xbox (Series)** (con capa Z) |
+| `gc_picow_pc.uf2` | **PC, todo en uno:** cable USB → Xbox 360 por USB; sin cable → Xbox por Bluetooth | **Control de Xbox** (con capa Z) |
 | `retro_pico_switch.uf2` | USB (compilación anterior, nombre por defecto) | HORIPAD |
 
 Para instalar: mantener BOOTSEL al conectar la Pico por USB y arrastrar el `.uf2` a la unidad que aparece.
 
-## Modo PC: control de Xbox (`gc_picow_xinput.uf2` por USB, `gc_picow_xbox_bt.uf2` por Bluetooth)
+## Modo PC: control de Xbox (`gc_picow_pc.uf2`)
 
-- **USB:** Windows lo reconoce como control de Xbox 360 (XInput), sin instalar nada.
-- **Bluetooth:** se anuncia como "Xbox Wireless Controller" (modelo Series, Bluetooth LE).
-  Se empareja desde Configuración → Bluetooth → Agregar dispositivo, sin PIN, y después
-  se reconecta solo a esa PC. Necesita Windows 10/11 actualizado.
+Un solo firmware para PC:
 
-  | Atajo (Bluetooth) | Qué hace |
+- **Cable USB conectado a una PC → control de Xbox 360 por USB.** Siempre tiene prioridad,
+  aunque esté en Bluetooth: al conectar el cable se reinicia como USB.
+- **Sin cable → Bluetooth** ("Xbox Wireless Controller", modelo Series, Bluetooth LE).
+  Arranca dormido (radio apagada):
+  - **cualquier botón** → despierta y se reconecta solo a la PC guardada
+  - **Start+Y 1 s** → despierta y se hace visible para emparejar una PC nueva
+
+  | Atajo (Bluetooth, ya prendido) | Qué hace |
   |---|---|
-  | Y+Start 2 s | Emparejar una PC nueva (visible 60 s) |
+  | Y+Start 1 s | Emparejar una PC nueva (visible 60 s) |
   | Y+Start 8 s | Olvidar todas las PCs y quedar visible |
   | L+R+Start 3 s | Apagar (se duerme) |
-  | Cualquier botón 0.3 s | Despertar |
   | 5 min sin usarlo | Se apaga solo |
   | A+B+Z+Start 3 s | Modo carga de `.uf2` (BOOTSEL) |
 
+  Se empareja desde Configuración → Bluetooth → Agregar dispositivo, sin PIN.
   LED: fijo = conectado · parpadeo lento = esperando a la PC · parpadeo rápido =
-  emparejando · apagado = dormido. La primera vez (sin PCs guardadas) arranca visible.
-  Mientras se mantiene un atajo no se manda nada al juego.
+  emparejando · apagado = dormido. Mientras se mantiene un atajo no se manda nada al juego.
+- **Si algo se congela**, un vigilante (watchdog) reinicia la Pico sola en 2-3 s y vuelve
+  al modo en el que estaba.
 
-Los dos usan el mismo mapeo, que se edita en [`include/MapeoXInput.h`](include/MapeoXInput.h)
-(incluye zona muerta del stick izquierdo, 5% por defecto).
+`gc_picow_xinput.uf2` es la versión solo USB. El mapeo de los dos se edita en
+[`include/MapeoXInput.h`](include/MapeoXInput.h) (incluye zona muerta del stick izquierdo, 5%).
 
 | GameCube | Xbox 360 | Con Z mantenida |
 |---|---|---|
@@ -59,12 +64,12 @@ Capa Z: mientras mantienes Z, los botones con función "con Z" cambian al instan
 (`MODO_Z` también permite que Z prenda/apague la capa con cada toque). Los botones sin
 función "con Z" siguen funcionando normal. Cada botón puede tener toque/mantener
 (columna "mantener"); el toque se manda al soltar. Las pruebas de esta lógica
-están en `tests/` (`test_remapeo.cpp`, `test_xbox_bt.cpp`) y corren en la PC.
+están en `tests/` (`test_remapeo.cpp`, `test_xbox_bt.cpp`, `test_despertar.cpp`) y corren en la PC.
 
 ## Compilar
 
 `CMakeLists.txt` acepta `-DPICO_BOARD=pico_w|pico`, `-DXINPUT=ON|OFF` (Xbox 360 por USB),
-`-DXBOX_BT=ON|OFF` (Xbox por Bluetooth LE, solo Pico W), `-DSWITCH_BLUETOOTH=ON|OFF`,
+`-DGC_PC=ON|OFF` (firmware de PC: USB + Bluetooth en uno, solo Pico W), `-DSWITCH_BLUETOOTH=ON|OFF`,
 `-DLOW_POWER_MODE=ON|OFF` y `-DCONTROLLER_TYPE=Gamecube|N64`. También hay un `Dockerfile`.
 
 ---

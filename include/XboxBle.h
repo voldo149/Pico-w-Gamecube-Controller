@@ -7,7 +7,8 @@
 // aplica el mismo mapeo y capa Z que el modo USB (include/MapeoXInput.h).
 class XboxBle {
  public:
-  static void init(GamecubeController *controller);
+  // emparejar = true: arranca visible para emparejar una PC nueva
+  static void init(GamecubeController *controller, bool emparejar);
 };
 
 #endif

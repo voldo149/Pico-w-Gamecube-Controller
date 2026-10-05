@@ -10,11 +10,12 @@ if(XINPUT)
   set(SWITCH_BLUETOOTH OFF CACHE BOOL "" FORCE)
 endif()
 
-# XBOX_BT=ON: control de Xbox (Series) por Bluetooth LE para PC (solo Pico W y
-# Gamecube), con el mismo mapeo y capa Z que XINPUT.
-option(XBOX_BT "Control de Xbox por Bluetooth LE para PC (Pico W)" OFF)
-if(XBOX_BT)
-  add_compile_definitions(XBOX_BT)
+# GC_PC=ON: firmware de PC en un solo .uf2 (solo Pico W y Gamecube):
+# cable USB a una PC = Xbox 360 por USB; sin cable = Xbox por Bluetooth LE.
+# Mismo mapeo y capa Z que XINPUT (include/MapeoXInput.h).
+option(GC_PC "Firmware de PC: USB (Xbox 360) + Bluetooth (Xbox) en uno (Pico W)" OFF)
+if(GC_PC)
+  add_compile_definitions(GC_PC)
   set(SWITCH_BLUETOOTH OFF CACHE BOOL "" FORCE)
 endif()
 
@@ -34,12 +35,14 @@ add_subdirectory(otherController)
 
 add_executable(${PROJECT_NAME} main.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)
-if(XINPUT)
+if(GC_PC)
+  add_subdirectory(xinputController)
+  add_subdirectory(xboxBleController)
+  add_subdirectory(pcController)
+  target_link_libraries(${PROJECT_NAME} pico_stdlib modoPc n64 gamecube)
+elseif(XINPUT)
   add_subdirectory(xinputController)
   target_link_libraries(${PROJECT_NAME} pico_stdlib xinputUsb n64 gamecube)
-elseif(XBOX_BT)
-  add_subdirectory(xboxBleController)
-  target_link_libraries(${PROJECT_NAME} pico_stdlib xboxBle n64 gamecube)
 else()
   add_subdirectory(switchController)
   target_link_libraries(${PROJECT_NAME} pico_stdlib switchBluetooth switchUsb n64 gamecube)

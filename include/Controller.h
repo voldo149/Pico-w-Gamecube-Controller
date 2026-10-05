@@ -35,7 +35,15 @@ class Controller {
     for (int i = 0; i < dataLength; i++) {
       dataWithResponseLength |= *(request + i) << (19 - i * 8);
     }
-    pio_sm_put_blocking(_pio, _sm, dataWithResponseLength);
+    // Restos de una lectura anterior que fallo a medias se tomarian como
+    // botones (botones fantasma): se tiran antes de pedir datos nuevos.
+    emptyRxFifo();
+    // Nunca esperar para siempre: si la maquina PIO se atoro, fallar y que
+    // quien llama reinicie el control (antes aqui se congelaba la Pico).
+    if (pio_sm_is_tx_fifo_full(_pio, _sm)) {
+      throw 0;
+    }
+    pio_sm_put(_pio, _sm, dataWithResponseLength);
 
     int16_t remainingBytes = responseLength;
     while (remainingBytes > 0) {
