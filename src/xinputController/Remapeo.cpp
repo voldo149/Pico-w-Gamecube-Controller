@@ -43,15 +43,52 @@ void Remapeo::actualizar(const GcState &gc, uint32_t ahora, XInputReport *salida
   if (gc.cx < -C_STICK_UMBRAL) b |= GC_BIT(GC_C_IZQ);
   if (gc.cx > C_STICK_UMBRAL) b |= GC_BIT(GC_C_DER);
 
-  // 2) Capa Z: sin retraso, Z no manda nada por sí sola
-  const uint32_t bitZ = GC_BIT(GC_Z);
-  const bool zAhora = b & bitZ;
+  // 2) Capa (TECLA_CAPA). Sin toque/mantener propio es instantanea; con
+  //    CAPA_TOQUE / CAPA_MANTENIDA espera a ver si hay combo (ver MapeoXInput.h)
+  const uint32_t bitCapa = GC_BIT(TECLA_CAPA);
+  const bool capaAhora = b & bitCapa;
+  const bool capaConFuncion = (CAPA_TOQUE != NADA) || (CAPA_MANTENIDA != NADA);
   bool capa = false;
-  if (MODO_Z == Z_MANTENER) {
-    capa = zAhora;
-  } else if (MODO_Z == Z_ALTERNAR) {
-    if (zAhora && !(_botonesAntes & bitZ)) _capaFija = !_capaFija;
+  uint32_t salCapa = 0;
+  if (MODO_Z == Z_ALTERNAR) {
+    if (capaAhora && !(_botonesAntes & bitCapa)) _capaFija = !_capaFija;
     capa = _capaFija;
+  } else if (MODO_Z == Z_MANTENER && !capaConFuncion) {
+    capa = capaAhora;
+  } else if (MODO_Z == Z_MANTENER) {
+    uint32_t combinables = 0;
+    for (int i = 0; i < GC_NUM_BOTONES; i++) {
+      if (i != TECLA_CAPA && MAPEO[i].conCapa != NADA) combinables |= GC_BIT(i);
+    }
+    const uint32_t nuevos = b & ~_botonesAntes & ~bitCapa;
+    if (capaAhora) {
+      if (_capa == CAPA_SUELTA) {
+        _capa = CAPA_PENDIENTE;
+        _capaDesde = ahora;
+      }
+      if (_capa == CAPA_PENDIENTE) {
+        if (nuevos & combinables) {
+          _capa = CAPA_COMBO;
+        } else if (ahora - _capaDesde >= TIEMPO_MANTENER_MS) {
+          _capa = CAPA_MANTENIDA_EST;
+        }
+      }
+    } else {
+      if (_capa == CAPA_PENDIENTE) {  // soltada antes de tiempo y sin combo: toque
+        _capaPulso = true;
+        _capaPulsoHasta = ahora + PULSO_MS;
+      }
+      _capa = CAPA_SUELTA;
+    }
+    capa = (_capa == CAPA_PENDIENTE || _capa == CAPA_COMBO);
+    if (_capa == CAPA_MANTENIDA_EST) salCapa |= CAPA_MANTENIDA;
+    if (_capaPulso) {
+      if ((int32_t)(ahora - _capaPulsoHasta) < 0) {
+        salCapa |= CAPA_TOQUE;
+      } else {
+        _capaPulso = false;
+      }
+    }
   }
 
   // 3) Cada botón
@@ -59,7 +96,7 @@ void Remapeo::actualizar(const GcState &gc, uint32_t ahora, XInputReport *salida
   uint8_t lt = 0, rt = 0;
   bool cComoBotonConZ = false;
   for (int i = 0; i < GC_NUM_BOTONES; i++) {
-    if (i == GC_Z && MODO_Z != Z_BOTON) continue;
+    if (i == TECLA_CAPA && MODO_Z != Z_BOTON) continue;
     const MapeoBoton &m = MAPEO[i];
     const uint32_t bit = GC_BIT(i);
     const bool abajo = b & bit;
@@ -67,7 +104,7 @@ void Remapeo::actualizar(const GcState &gc, uint32_t ahora, XInputReport *salida
     EstadoBoton &e = _boton[i];
 
     if (abajo && !antes) {
-      if (capa && m.conZ != NADA) {
+      if (capa && m.conCapa != NADA) {
         e.modo = CON_Z;
       } else if (m.mantener != NADA) {
         e.modo = ESPERANDO;
@@ -95,7 +132,7 @@ void Remapeo::actualizar(const GcState &gc, uint32_t ahora, XInputReport *salida
         analogico = true;
         break;
       case CON_Z:
-        o = m.conZ;
+        o = m.conCapa;
         if (esCStick(i)) cComoBotonConZ = true;
         break;
       case MANTENIDO:
@@ -122,6 +159,11 @@ void Remapeo::actualizar(const GcState &gc, uint32_t ahora, XInputReport *salida
       if (v > rt) rt = v;
     }
   }
+
+  // Lo que manda la tecla de capa por si sola (toque / mantenida)
+  sal |= salCapa;
+  if (salCapa & XB_LT) lt = 255;
+  if (salCapa & XB_RT) rt = 255;
 
   // 4) Sticks. El C-stick es el stick derecho salvo que se use como botones
   bool cAnalogico = !cComoBotonConZ;

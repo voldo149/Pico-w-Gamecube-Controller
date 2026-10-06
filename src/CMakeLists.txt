@@ -19,6 +19,13 @@ if(GC_PC)
   set(SWITCH_BLUETOOTH OFF CACHE BOOL "" FORCE)
 endif()
 
+# MAPEO_CLASICO=ON (con GC_PC o XINPUT): Z = RB; Start toque = Start, mantener = Back,
+# Start + D-pad arriba = boton Xbox. OFF = mapeo con capa Z. Ver include/MapeoXInput.h.
+option(MAPEO_CLASICO "Mapeo clasico (Z = RB, Start toque/mantener)" OFF)
+if(MAPEO_CLASICO)
+  add_compile_definitions(MAPEO_CLASICO)
+endif()
+
 # Conexion a la Switch: ON = Bluetooth (requiere Pico W), OFF = USB (Pico o Pico W)
 option(SWITCH_BLUETOOTH "Conectar a la Switch por Bluetooth (solo Pico W)" ON)
 if(SWITCH_BLUETOOTH)

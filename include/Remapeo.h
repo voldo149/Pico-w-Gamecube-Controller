@@ -24,6 +24,12 @@ class Remapeo {
   EstadoBoton _boton[GC_NUM_BOTONES];
   uint32_t _botonesAntes = 0;
   bool _capaFija = false;  // para MODO_Z == Z_ALTERNAR
+  // Tecla de capa con toque/mantener propio (CAPA_TOQUE / CAPA_MANTENIDA)
+  enum EstadoCapa : uint8_t { CAPA_SUELTA, CAPA_PENDIENTE, CAPA_COMBO, CAPA_MANTENIDA_EST };
+  EstadoCapa _capa = CAPA_SUELTA;
+  uint32_t _capaDesde = 0;
+  bool _capaPulso = false;
+  uint32_t _capaPulsoHasta = 0;
 };
 
 #endif

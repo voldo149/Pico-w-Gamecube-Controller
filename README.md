@@ -14,6 +14,7 @@ con cambios propios: mapeo de gatillos (L analógico = ZL, L + D-pad = L; Z = R)
 | `gc_picow_usb.uf2` | USB | HORIPAD (HORI, compatible con Switch) |
 | `gc_picow_xinput.uf2` | USB, para PC | **Control de Xbox 360** (con capa Z) |
 | `gc_picow_pc.uf2` | **PC, todo en uno:** cable USB → Xbox 360 por USB; sin cable → Xbox por Bluetooth | **Control de Xbox** (con capa Z) |
+| `gc_picow_pc_clasico.uf2` | Igual que `gc_picow_pc.uf2`, con el **mapeo clásico** | **Control de Xbox** (Z = RB) |
 | `retro_pico_switch.uf2` | USB (compilación anterior, nombre por defecto) | HORIPAD |
 
 Para instalar: mantener BOOTSEL al conectar la Pico por USB y arrastrar el `.uf2` a la unidad que aparece.
@@ -43,6 +44,10 @@ Un solo firmware para PC:
 - **Si algo se congela**, un vigilante (watchdog) reinicia la Pico sola en 2-3 s y vuelve
   al modo en el que estaba.
 
+**Mapeo clásico** (`gc_picow_pc_clasico.uf2`): igual que la tabla de abajo pero sin capa Z:
+Z = **RB**; Start: toque = **Start**, mantener 0.3 s = **Back**; **Start + D-pad ↑ = botón Xbox**
+(presiona ↑ antes de 0.3 s). Sin LB, L3 ni R3. Los atajos del adaptador son los mismos.
+
 `gc_picow_xinput.uf2` es la versión solo USB. El mapeo de los dos se edita en
 [`include/MapeoXInput.h`](include/MapeoXInput.h) (incluye zona muerta del stick izquierdo, 5%).
 
@@ -64,12 +69,13 @@ Capa Z: mientras mantienes Z, los botones con función "con Z" cambian al instan
 (`MODO_Z` también permite que Z prenda/apague la capa con cada toque). Los botones sin
 función "con Z" siguen funcionando normal. Cada botón puede tener toque/mantener
 (columna "mantener"); el toque se manda al soltar. Las pruebas de esta lógica
-están en `tests/` (`test_remapeo.cpp`, `test_xbox_bt.cpp`, `test_despertar.cpp`) y corren en la PC.
+están en `tests/` (`test_remapeo.cpp`, `test_remapeo_clasico.cpp`, `test_xbox_bt.cpp`, `test_despertar.cpp`) y corren en la PC.
 
 ## Compilar
 
 `CMakeLists.txt` acepta `-DPICO_BOARD=pico_w|pico`, `-DXINPUT=ON|OFF` (Xbox 360 por USB),
-`-DGC_PC=ON|OFF` (firmware de PC: USB + Bluetooth en uno, solo Pico W), `-DSWITCH_BLUETOOTH=ON|OFF`,
+`-DGC_PC=ON|OFF` (firmware de PC: USB + Bluetooth en uno, solo Pico W),
+`-DMAPEO_CLASICO=ON|OFF` (mapeo clásico en vez de capa Z), `-DSWITCH_BLUETOOTH=ON|OFF`,
 `-DLOW_POWER_MODE=ON|OFF` y `-DCONTROLLER_TYPE=Gamecube|N64`. También hay un `Dockerfile`.
 
 ---
