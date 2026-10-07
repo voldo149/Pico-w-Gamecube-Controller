@@ -180,7 +180,8 @@ static const uint8_t xbox_hid_descriptor[] = {
 //   L+R+Start        3 s: apagar (se duerme; cualquier boton lo despierta)
 //   A+B+Z+Start      3 s: modo carga de .uf2 (BOOTSEL)
 //   Sin tocar nada IDLE_OFF_MS: se apaga solo
-// Mientras uno de estos combos esta presionado no se manda nada al juego.
+// Si uno de estos combos se mantiene mas de BLOQUEO_MS, se deja de mandar al
+// juego hasta soltar todo (un toque rapido si llega: Start+Y = Start, etc.).
 
 #define ATAJO_EMPAREJAR (GC_BIT(GC_Y) | GC_BIT(GC_START))
 #define ATAJO_APAGAR (GC_BIT(GC_L) | GC_BIT(GC_R) | GC_BIT(GC_START))
@@ -191,6 +192,7 @@ static const uint8_t xbox_hid_descriptor[] = {
 #define EMPAREJAR_MS 60000                  // visible 60 s para emparejar
 #define IDLE_OFF_MS (5UL * 60UL * 1000UL)   // 0 = nunca apagarse solo
 #define ACTIVIDAD_STICK 0.15f               // movimiento minimo que cuenta como uso
+#define BLOQUEO_MS 250                      // combo de atajo mantenido: dejar de mandar
 
 struct Mantener {
   uint32_t desde = 0;
@@ -227,7 +229,8 @@ static uint32_t _ultimoEnvio = 0;
 
 static bool _emparejando = false;    // visible y aceptando PCs nuevas
 static uint32_t _emparejarHasta = 0;  // 0 = sin limite (no hay ninguna PC guardada)
-static bool _bloqueado = false;      // un atajo esta presionado: no se manda nada
+static bool _bloqueado = false;      // un atajo se esta manteniendo: no se manda nada
+static uint32_t _atajoDesde = 0;
 static bool _apagando = false;
 static uint32_t _apagarEn = 0;
 static uint32_t _ultimaActividad = 0;
@@ -329,9 +332,11 @@ static void tick(btstack_timer_source_t *ts) {
   // Atajos
   const uint32_t atajo = botonesAtajo(_gc);
   if (atajo == ATAJO_EMPAREJAR || atajo == ATAJO_APAGAR || atajo == ATAJO_BOOTSEL) {
-    _bloqueado = true;
-  } else if (atajo == 0) {
-    _bloqueado = false;
+    if (_atajoDesde == 0) _atajoDesde = ahora ? ahora : 1;
+    if (ahora - _atajoDesde >= BLOQUEO_MS) _bloqueado = true;
+  } else {
+    _atajoDesde = 0;
+    if (atajo == 0) _bloqueado = false;
   }
   revisarAtajoBootsel(_gc, ahora);
   if (mantenido(_mEmparejar, atajo == ATAJO_EMPAREJAR, ahora, EMPAREJAR_HOLD_MS)) {

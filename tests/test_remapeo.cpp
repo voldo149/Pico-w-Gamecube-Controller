@@ -35,88 +35,73 @@ int main() {
     m.actualizar(gc(B(GC_A)), 0, &r);
     CHECK(r.botones == XB_A, "A -> A al instante");
     m.actualizar(gc(B(GC_X)), 10, &r);
-    CHECK(r.botones == XB_X, "X sin Z -> X");
+    CHECK(r.botones == XB_X, "X sin Start -> X");
+    m.actualizar(gc(B(GC_Z)), 20, &r);
+    CHECK(r.botones == XB_RB, "Z -> RB al instante");
+    m.actualizar(gc(B(GC_DPAD_ARRIBA)), 30, &r);
+    CHECK(r.botones == XB_DPAD_ARRIBA, "D-pad arriba sin Start -> D-pad arriba");
   }
   {
-    Remapeo m;  // Z sola no manda nada, ni al presionar ni al soltar ni mantenida
-    m.actualizar(gc(B(GC_Z)), 0, &r);
-    CHECK(r.botones == 0, "Z presionada: nada");
-    m.actualizar(gc(B(GC_Z)), 1000, &r);
-    CHECK(r.botones == 0, "Z mantenida 1 s: nada");
+    Remapeo m;  // Start solo no manda nada, ni al presionar, ni mantenido, ni al soltar
+    m.actualizar(gc(B(GC_START)), 0, &r);
+    CHECK(r.botones == 0, "Start presionado: nada");
+    m.actualizar(gc(B(GC_START)), 1000, &r);
+    CHECK(r.botones == 0, "Start mantenido 1 s: nada");
     m.actualizar(gc(0), 1010, &r);
     m.actualizar(gc(0), 1020, &r);
-    CHECK(r.botones == 0, "Z soltada: nada");
+    CHECK(r.botones == 0, "Start soltado: nada");
   }
   {
-    Remapeo m;  // la capa es instantanea
-    m.actualizar(gc(B(GC_Z)), 0, &r);
-    m.actualizar(gc(B(GC_Z) | B(GC_Y)), 1, &r);
-    CHECK(r.botones == XB_LB, "Z + Y -> LB al instante");
-    m.actualizar(gc(B(GC_Z) | B(GC_Y) | B(GC_X)), 2, &r);
-    CHECK(r.botones == (XB_LB | XB_RB), "Z + Y + X -> LB + RB");
+    Remapeo m;  // capa Start instantanea
+    m.actualizar(gc(B(GC_START)), 0, &r);
+    m.actualizar(gc(B(GC_START) | B(GC_Y)), 1, &r);
+    CHECK(r.botones == XB_START, "Start + Y -> Start al instante");
+    m.actualizar(gc(B(GC_START) | B(GC_Y) | B(GC_X)), 2, &r);
+    CHECK(r.botones == (XB_START | XB_BACK), "Start + Y + X -> Start + Back");
     m.actualizar(gc(B(GC_Y) | B(GC_X)), 3, &r);
-    CHECK(r.botones == (XB_LB | XB_RB), "suelto Z: Y y X siguen como LB/RB hasta soltarlos");
+    CHECK(r.botones == (XB_START | XB_BACK), "suelto Start: Y y X siguen como Start/Back hasta soltarlos");
     m.actualizar(gc(0), 4, &r);
     m.actualizar(gc(B(GC_Y)), 5, &r);
-    CHECK(r.botones == XB_Y, "Y sin Z otra vez -> Y");
+    CHECK(r.botones == XB_Y, "Y sin Start otra vez -> Y");
   }
   {
-    Remapeo m;  // Z mantenida mucho tiempo antes del combo sigue funcionando
-    m.actualizar(gc(B(GC_Z)), 0, &r);
-    m.actualizar(gc(B(GC_Z) | B(GC_X)), 5000, &r);
-    CHECK(r.botones == XB_RB, "Z mantenida 5 s + X -> RB");
-  }
-  {
-    Remapeo m;  // botones sin funcion con Z
-    m.actualizar(gc(B(GC_Z) | B(GC_A)), 0, &r);
-    CHECK(r.botones == XB_A, "Z + A (sin funcion con Z) -> A normal");
-    m.actualizar(gc(B(GC_Z) | B(GC_A) | B(GC_DPAD_ARRIBA)), 10, &r);
-    CHECK(r.botones == (XB_A | XB_L3), "Z + D-pad arriba -> L3");
-    m.actualizar(gc(B(GC_Z) | B(GC_DPAD_ABAJO)), 20, &r);
-    CHECK(r.botones == XB_R3, "Z + D-pad abajo -> R3");
-    m.actualizar(gc(B(GC_Z) | B(GC_DPAD_IZQ)), 30, &r);
-    CHECK(r.botones == XB_DPAD_IZQ, "Z + D-pad izq (libre) -> D-pad izq");
-  }
-  {
-    Remapeo m;  // boton presionado ANTES de Z se queda normal
-    m.actualizar(gc(B(GC_Y)), 0, &r);
-    m.actualizar(gc(B(GC_Y) | B(GC_Z)), 10, &r);
-    CHECK(r.botones == XB_Y, "Y antes de Z: sigue siendo Y");
-  }
-  {
-    Remapeo m;  // Start: toque / mantener
+    Remapeo m;  // todos los combos con Start
     m.actualizar(gc(B(GC_START)), 0, &r);
-    CHECK(r.botones == 0, "Start presionado: espera");
+    m.actualizar(gc(B(GC_START) | B(GC_DPAD_ARRIBA)), 10, &r);
+    CHECK(r.botones == XB_GUIA, "Start + D-pad arriba -> boton Xbox (Home)");
+    m.actualizar(gc(B(GC_START)), 20, &r);
+    m.actualizar(gc(B(GC_START) | B(GC_DPAD_IZQ)), 30, &r);
+    CHECK(r.botones == XB_L3, "Start + D-pad izq -> L3");
+    m.actualizar(gc(B(GC_START)), 40, &r);
+    m.actualizar(gc(B(GC_START) | B(GC_DPAD_DER)), 50, &r);
+    CHECK(r.botones == XB_R3, "Start + D-pad der -> R3");
+    m.actualizar(gc(B(GC_START)), 60, &r);
+    m.actualizar(gc(B(GC_START) | B(GC_Z)), 70, &r);
+    CHECK(r.botones == XB_R3, "Start + Z -> R3");
+    m.actualizar(gc(B(GC_START)), 80, &r);
+    m.actualizar(gc(B(GC_START) | B(GC_L), 0xD0, 0), 90, &r);
+    CHECK(r.botones == XB_LB && r.lt == 0, "Start + L -> LB (sin LT)");
     m.actualizar(gc(B(GC_START)), 100, &r);
-    CHECK(r.botones == 0, "Start a 100 ms: sigue esperando");
-    m.actualizar(gc(0), 120, &r);
-    CHECK(r.botones == XB_START, "Start soltado a 120 ms: toque -> Start");
-    m.actualizar(gc(0), 169, &r);
-    CHECK(r.botones == XB_START, "pulso Start dura 50 ms");
-    m.actualizar(gc(0), 171, &r);
-    CHECK(r.botones == 0, "pulso Start termina");
+    m.actualizar(gc(B(GC_START) | B(GC_R), 0, 0xD0), 110, &r);
+    CHECK(r.botones == XB_RB && r.rt == 0, "Start + R -> RB (sin RT)");
+    m.actualizar(gc(B(GC_START)), 120, &r);
+    m.actualizar(gc(B(GC_START) | B(GC_X)), 130, &r);
+    CHECK(r.botones == XB_BACK, "Start + X -> Back (-)");
+    m.actualizar(gc(B(GC_START)), 140, &r);
+    m.actualizar(gc(B(GC_START) | B(GC_A) | B(GC_DPAD_ABAJO)), 150, &r);
+    CHECK(r.botones == (XB_A | XB_DPAD_ABAJO), "Start + A / D-pad abajo (libres) -> normales");
   }
   {
-    Remapeo m;
+    Remapeo m;  // Start mantenido mucho tiempo antes del combo sigue funcionando
     m.actualizar(gc(B(GC_START)), 0, &r);
-    m.actualizar(gc(B(GC_START)), 299, &r);
-    CHECK(r.botones == 0, "Start a 299 ms: nada");
-    m.actualizar(gc(B(GC_START)), 300, &r);
-    CHECK(r.botones == XB_GUIA, "Start mantenido 300 ms -> boton Xbox");
-    m.actualizar(gc(B(GC_START)), 1500, &r);
-    CHECK(r.botones == XB_GUIA, "sigue el boton Xbox mientras se mantiene");
-    m.actualizar(gc(0), 1510, &r);
-    CHECK(r.botones == 0, "soltar: nada, sin toque de Start extra");
+    m.actualizar(gc(B(GC_START) | B(GC_DPAD_ARRIBA)), 5000, &r);
+    CHECK(r.botones == XB_GUIA, "Start mantenido 5 s + D-pad arriba -> Home");
   }
   {
-    Remapeo m;  // Z + Start = Back, al instante
-    m.actualizar(gc(B(GC_Z)), 0, &r);
-    m.actualizar(gc(B(GC_Z) | B(GC_START)), 10, &r);
-    CHECK(r.botones == XB_BACK, "Z + Start -> Back al instante");
-    m.actualizar(gc(B(GC_Z) | B(GC_START)), 900, &r);
-    CHECK(r.botones == XB_BACK, "Z + Start mantenido: sigue Back (no boton Xbox)");
-    m.actualizar(gc(0), 910, &r);
-    CHECK(r.botones == 0, "soltar: nada");
+    Remapeo m;  // boton presionado ANTES de Start se queda normal
+    m.actualizar(gc(B(GC_Y)), 0, &r);
+    m.actualizar(gc(B(GC_Y) | B(GC_START)), 10, &r);
+    CHECK(r.botones == XB_Y, "Y antes de Start: sigue siendo Y");
   }
   {
     Remapeo m;  // gatillos
@@ -131,12 +116,12 @@ int main() {
   }
   {
     Remapeo m;  // sticks
-    GcState s = gc(B(GC_Z), 0, 0, 0.5f, -1.0f);
+    GcState s = gc(B(GC_START), 0, 0, 0.5f, -1.0f);
     s.lx = 0.0f;
     s.ly = -1.0f;
     m.actualizar(s, 0, &r);
     CHECK(r.lx == 0 && r.ly == -32767 && r.rx == 16383 && r.ry == -32767,
-          "sticks: +y arriba, C-stick tal cual, aun con Z");
+          "sticks: +y arriba, C-stick tal cual, aun con Start");
     CHECK(r.reportId == 0 && r.reportSize == 20, "cabecera del reporte XInput correcta");
   }
   {

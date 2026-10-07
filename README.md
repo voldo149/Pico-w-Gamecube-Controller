@@ -13,7 +13,7 @@ con cambios propios: mapeo de gatillos (L analógico = ZL, L + D-pad = L; Z = R)
 | `gc_picow_bluetooth_bateria.uf2` | Bluetooth, versión batería (arranca dormido y se apaga solo) | Pro Controller |
 | `gc_picow_usb.uf2` | USB | HORIPAD (HORI, compatible con Switch) |
 | `gc_picow_xinput.uf2` | USB, para PC | **Control de Xbox 360** (con capa Z) |
-| `gc_picow_pc.uf2` | **PC, todo en uno:** cable USB → Xbox 360 por USB; sin cable → Xbox por Bluetooth | **Control de Xbox** (con capa Z) |
+| `gc_picow_pc.uf2` | **PC, todo en uno:** cable USB → Xbox 360 por USB; sin cable → Xbox por Bluetooth | **Control de Xbox** (capa Start) |
 | `gc_picow_pc_clasico.uf2` | Igual que `gc_picow_pc.uf2`, con el **mapeo clásico** | **Control de Xbox** (Z = RB) |
 | `retro_pico_switch.uf2` | USB (compilación anterior, nombre por defecto) | HORIPAD |
 
@@ -40,7 +40,8 @@ Un solo firmware para PC:
 
   Se empareja desde Configuración → Bluetooth → Agregar dispositivo, sin PIN.
   LED: fijo = conectado · parpadeo lento = esperando a la PC · parpadeo rápido =
-  emparejando · apagado = dormido. Mientras se mantiene un atajo no se manda nada al juego.
+  emparejando · apagado = dormido. Si un combo de atajo se mantiene más de 0.25 s deja de
+  mandarse al juego (un toque rápido sí llega: Start+Y = Start).
 - **Si algo se congela**, un vigilante (watchdog) reinicia la Pico sola en 2-3 s y vuelve
   al modo en el que estaba.
 
@@ -51,23 +52,24 @@ Z = **RB**; Start: toque = **Start**, mantener 0.3 s = **Back**; **Start + D-pad
 `gc_picow_xinput.uf2` es la versión solo USB. El mapeo de los dos se edita en
 [`include/MapeoXInput.h`](include/MapeoXInput.h) (incluye zona muerta del stick izquierdo, 5%).
 
-| GameCube | Xbox 360 | Con Z mantenida |
+| GameCube | Xbox | Con **Start** mantenido |
 |---|---|---|
 | A / B | A / B | — |
-| X | X | **RB** |
-| Y | Y | **LB** |
-| L / R | LT / RT (analógicos) | — |
-| Start | toque = **Start** · mantener 0.3 s = **botón Xbox** | **Back** |
-| D-pad ↑ / ↓ | D-pad ↑ / ↓ | **L3** / **R3** |
-| D-pad ← / → | D-pad ← / → | (libres) |
+| X | X | **Back (−)** |
+| Y | Y | **Start (+)** |
+| Z | **RB** | **R3** |
+| L / R | LT / RT (analógicos) | **LB** / **RB** |
+| D-pad ↑ | D-pad ↑ | **Botón Xbox (Home)** |
+| D-pad ← / → | D-pad ← / → | **L3** / **R3** |
+| D-pad ↓ | D-pad ↓ | (libre) |
 | Stick / C-stick | Stick izquierdo / derecho | — |
-| **Z** | no manda nada: es solo la tecla de capa (instantánea) | |
+| **Start** | no manda nada: es solo la tecla de capa (instantánea) | |
 
 **A+B+Z+Start durante 3 s** reinicia la Pico en modo carga de `.uf2` (BOOTSEL), igual que el firmware Bluetooth.
 
-Capa Z: mientras mantienes Z, los botones con función "con Z" cambian al instante
-(`MODO_Z` también permite que Z prenda/apague la capa con cada toque). Los botones sin
-función "con Z" siguen funcionando normal. Cada botón puede tener toque/mantener
+Capa Start: mientras mantienes Start, los botones con función "con Start" cambian al
+instante (`MODO_Z` también permite que la tecla de capa prenda/apague la capa con cada
+toque). Los botones sin función "con Start" siguen funcionando normal. Cada botón puede tener toque/mantener
 (columna "mantener"); el toque se manda al soltar. Las pruebas de esta lógica
 están en `tests/` (`test_remapeo.cpp`, `test_remapeo_clasico.cpp`, `test_xbox_bt.cpp`, `test_despertar.cpp`) y corren en la PC.
 
@@ -75,7 +77,7 @@ están en `tests/` (`test_remapeo.cpp`, `test_remapeo_clasico.cpp`, `test_xbox_b
 
 `CMakeLists.txt` acepta `-DPICO_BOARD=pico_w|pico`, `-DXINPUT=ON|OFF` (Xbox 360 por USB),
 `-DGC_PC=ON|OFF` (firmware de PC: USB + Bluetooth en uno, solo Pico W),
-`-DMAPEO_CLASICO=ON|OFF` (mapeo clásico en vez de capa Z), `-DSWITCH_BLUETOOTH=ON|OFF`,
+`-DMAPEO_CLASICO=ON|OFF` (mapeo clásico en vez de capa Start), `-DSWITCH_BLUETOOTH=ON|OFF`,
 `-DLOW_POWER_MODE=ON|OFF` y `-DCONTROLLER_TYPE=Gamecube|N64`. También hay un `Dockerfile`.
 
 ---

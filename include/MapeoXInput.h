@@ -14,7 +14,8 @@
 // Se pueden combinar con | (ej. XB_LB | XB_RB = los dos a la vez).
 //
 // Hay dos mapeos; se elige al compilar:
-//   - capa Z (por defecto): Z es la tecla de capa (Z+Y = LB, Z+X = RB...)
+//   - capa Start (por defecto): Z = RB; mientras mantienes Start cambian los
+//     botones (Start+Y = Start, Start+X = Back, Start+↑ = botón Xbox...)
 //   - clásico (-DMAPEO_CLASICO=ON): Z = RB; Start: toque = Start, mantener = Back,
 //     Start + D-pad ↑ = botón Xbox
 //
@@ -59,7 +60,7 @@
 #define ZONA_MUERTA_IZQ 0.05f
 #define ZONA_MUERTA_DER 0.0f
 
-// C-stick como botones en la capa Z: qué tanto hay que moverlo (0..1)
+// C-stick como botones en la capa: qué tanto hay que moverlo (0..1)
 #define C_STICK_UMBRAL 0.5f
 
 struct MapeoBoton {
@@ -69,28 +70,29 @@ struct MapeoBoton {
 };
 
 #ifndef MAPEO_CLASICO
-// ===================== Mapeo "capa Z" =====================
-// Z no manda nada: mientras la mantienes, cambian los botones con "con capa".
-#define TECLA_CAPA GC_Z
-#define CAPA_TOQUE NADA      // lo que manda Z sola al tocarla
-#define CAPA_MANTENIDA NADA  // lo que manda Z sola al mantenerla
+// ===================== Mapeo "capa Start" (principal) =====================
+// Start no manda nada: mientras lo mantienes, cambian los botones con "con Start".
+// (El Start y el Back del juego salen de Start+Y y Start+X.)
+#define TECLA_CAPA GC_START
+#define CAPA_TOQUE NADA      // lo que manda Start solo al tocarlo
+#define CAPA_MANTENIDA NADA  // lo que manda Start solo al mantenerlo
 
 // Una fila por botón del GC, en este orden exacto (ver GcState.h).
 static const MapeoBoton MAPEO[GC_NUM_BOTONES] = {
-    //  normal           con Z           mantener
+    //  normal           con Start       mantener
     {XB_A,              NADA,           NADA},      // A
     {XB_B,              NADA,           NADA},      // B
-    {XB_X,              XB_RB,          NADA},      // X          | Z+X = RB
-    {XB_Y,              XB_LB,          NADA},      // Y          | Z+Y = LB
-    {NADA,              NADA,           NADA},      // Z  (es la tecla de capa)
-    {XB_LT,             NADA,           NADA},      // L  (analógico)
-    {XB_RT,             NADA,           NADA},      // R  (analógico)
-    {XB_START,          XB_BACK,        XB_GUIA},   // Start      | toque = Start, mantener = Xbox, Z+Start = Back
-    {XB_DPAD_ARRIBA,    XB_L3,          NADA},      // D-pad ↑    | Z+↑ = L3
-    {XB_DPAD_ABAJO,     XB_R3,          NADA},      // D-pad ↓    | Z+↓ = R3
-    {XB_DPAD_IZQ,       NADA,           NADA},      // D-pad ←    | (Z+← libre)
-    {XB_DPAD_DER,       NADA,           NADA},      // D-pad →    | (Z+→ libre)
-    {NADA,              NADA,           NADA},      // C-stick ↑  (sin Z es el stick derecho)
+    {XB_X,              XB_BACK,        NADA},      // X          | Start+X = Back (-)
+    {XB_Y,              XB_START,       NADA},      // Y          | Start+Y = Start (+)
+    {XB_RB,             XB_R3,          NADA},      // Z = RB     | Start+Z = R3
+    {XB_LT,             XB_LB,          NADA},      // L  (analógico) | Start+L = LB
+    {XB_RT,             XB_RB,          NADA},      // R  (analógico) | Start+R = RB
+    {NADA,              NADA,           NADA},      // Start (es la tecla de capa)
+    {XB_DPAD_ARRIBA,    XB_GUIA,        NADA},      // D-pad ↑    | Start+↑ = botón Xbox (Home)
+    {XB_DPAD_ABAJO,     NADA,           NADA},      // D-pad ↓    | (Start+↓ libre)
+    {XB_DPAD_IZQ,       XB_L3,          NADA},      // D-pad ←    | Start+← = L3
+    {XB_DPAD_DER,       XB_R3,          NADA},      // D-pad →    | Start+→ = R3
+    {NADA,              NADA,           NADA},      // C-stick ↑  (es el stick derecho)
     {NADA,              NADA,           NADA},      // C-stick ↓
     {NADA,              NADA,           NADA},      // C-stick ←
     {NADA,              NADA,           NADA},      // C-stick →
