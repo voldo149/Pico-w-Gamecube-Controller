@@ -12,7 +12,7 @@ con cambios propios: mapeo de gatillos (L analógico = ZL, L + D-pad = L; Z = R)
 | `gc_picow_bluetooth.uf2` | Bluetooth (Pico W) | Pro Controller |
 | `gc_picow_bluetooth_bateria.uf2` | Bluetooth, versión batería (arranca dormido y se apaga solo) | Pro Controller |
 | `gc_picow_usb.uf2` | USB | HORIPAD (HORI, compatible con Switch) |
-| `gc_picow_xinput.uf2` | USB, para PC | **Control de Xbox 360** (con capa Z) |
+| `gc_picow_xinput.uf2` | USB, para PC | **Control de Xbox 360** (capa Start) |
 | `gc_picow_pc.uf2` | **PC, todo en uno:** cable USB → Xbox 360 por USB; sin cable → Xbox por Bluetooth | **Control de Xbox** (capa Start) |
 | `gc_picow_pc_clasico.uf2` | Igual que `gc_picow_pc.uf2`, con el **mapeo clásico** | **Control de Xbox** (Z = RB) |
 | `retro_pico_switch.uf2` | USB (compilación anterior, nombre por defecto) | HORIPAD |
@@ -45,7 +45,7 @@ Un solo firmware para PC:
 - **Si algo se congela**, un vigilante (watchdog) reinicia la Pico sola en 2-3 s y vuelve
   al modo en el que estaba.
 
-**Mapeo clásico** (`gc_picow_pc_clasico.uf2`): igual que la tabla de abajo pero sin capa Z:
+**Mapeo clásico** (`gc_picow_pc_clasico.uf2`): en vez de la tabla de abajo:
 Z = **RB**; Start: toque = **Start**, mantener 0.3 s = **Back**; **Start + D-pad ↑ = botón Xbox**
 (presiona ↑ antes de 0.3 s). Sin LB, L3 ni R3. Los atajos del adaptador son los mismos.
 
